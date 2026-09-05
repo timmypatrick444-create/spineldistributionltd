@@ -1,1 +1,20 @@
 @import "tailwindcss";
+
+@layer base {
+  html {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    color: #0f1111;
+  }
+
+  body {
+    font-size: 0.9375rem; /* 15px default base */
+    line-height: 1.5;
+    background-color: #f3f4f6;
+  }
+
+  input, select, textarea, button {
+    font-size: inherit;
+  }
+}

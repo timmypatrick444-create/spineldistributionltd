@@ -292,19 +292,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {/* Top Admin Bar */}
       <header className="bg-[#131921] text-white px-6 py-3 flex items-center justify-between border-b border-gray-800 shadow-md">
         <div className="flex items-center gap-3">
-          <div
-            className="flex items-center cursor-pointer bg-white rounded p-1"
-            onClick={onNavigateHome}
-            title="Spinel Distribution Ltd"
-          >
-            <img
-              src="https://res.cloudinary.com/bmv4hvtk/image/upload/v1788619290/Spinel_Distribution.jpg"
-              alt="Spinel Distribution Ltd"
-              className="h-7 w-auto object-contain"
-              referrerPolicy="no-referrer"
-            />
-          </div>
-          <span className="bg-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded text-[11px] border border-amber-500/40">
+          <span className="bg-amber-500/20 text-amber-300 font-bold px-3 py-1 rounded text-xs tracking-wider border border-amber-500/40">
             ADMINISTRATIVE CONSOLE
           </span>
         </div>
@@ -377,18 +365,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <Database className="w-4 h-4 text-gray-400" />
             <span>Supabase & Paystack Config</span>
           </button>
-
-          <div className="pt-6 px-3">
-            <div className="p-3 bg-gray-800/80 rounded-md border border-gray-700 text-[11px] space-y-1 text-gray-400">
-              <span className="text-gray-300 font-bold block">Exchange Rate Active:</span>
-              <span className="text-amber-400 font-mono font-semibold">
-                1 USD = ₦{config?.usdToNgnRate.toLocaleString() || '1,550'} NGN
-              </span>
-              <span className="text-[10px] text-gray-400 block pt-1">
-                Parsed dynamically through server environment variables.
-              </span>
-            </div>
-          </div>
         </aside>
 
         {/* Content Area */}
@@ -531,16 +507,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h4 className="font-bold text-sm text-emerald-900 flex items-center gap-2">
-                    <Download className="w-4 h-4 text-emerald-700" /> Official Excel Upload Template
+                    <Download className="w-4 h-4 text-emerald-700" /> Official Excel Upload Template with Quote Support
                   </h4>
                   <p className="text-xs text-emerald-800 mt-1">
-                    Download our formatted spreadsheet template containing sample rows and official category listings.
+                    Download formatted template supporting both <strong>Fixed-Price products</strong> (checkout flow) and <strong>Unpriced/Quote products</strong> (Request Quote flow).
                   </p>
                 </div>
 
                 <a
                   href="/api/admin/products/template"
-                  download="SecStore_Bulk_Products_Template.xlsx"
+                  download="Spinel_Bulk_Products_Template.xlsx"
                   className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-2 px-4 rounded text-xs flex items-center gap-2 shrink-0 transition-colors shadow-xs"
                 >
                   <Download className="w-4 h-4" />
@@ -655,9 +631,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <strong className="block text-gray-800">SubCategory</strong>
                     <span className="text-[11px] text-gray-500">Specific subcategory</span>
                   </div>
+                  <div className="p-2 bg-amber-50 rounded border border-amber-200">
+                    <strong className="block text-amber-900">HasPrice</strong>
+                    <span className="text-[11px] text-amber-700">"Yes" (checkout) or "No" (quote)</span>
+                  </div>
+                  <div className="p-2 bg-amber-50 rounded border border-amber-200">
+                    <strong className="block text-amber-900">PricingType</strong>
+                    <span className="text-[11px] text-amber-700">"fixed" or "quote"</span>
+                  </div>
                   <div className="p-2 bg-gray-50 rounded border">
-                    <strong className="block text-gray-800">PriceUSD *</strong>
-                    <span className="text-[11px] text-gray-500">Base price in USD ($)</span>
+                    <strong className="block text-gray-800">PriceUSD</strong>
+                    <span className="text-[11px] text-gray-500">USD price (leave blank if quote)</span>
                   </div>
                   <div className="p-2 bg-gray-50 rounded border">
                     <strong className="block text-gray-800">StockQuantity</strong>
@@ -1073,14 +1057,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-bold mb-1">Price (USD) *</label>
+                  <label className="block font-bold mb-1">Pricing Model *</label>
+                  <select
+                    value={editingProduct.hasPrice === false || editingProduct.pricingType === 'quote' ? 'quote' : 'fixed'}
+                    onChange={(e) => {
+                      const isQuote = e.target.value === 'quote';
+                      setEditingProduct({
+                        ...editingProduct,
+                        hasPrice: !isQuote,
+                        pricingType: isQuote ? 'quote' : 'fixed',
+                        priceUSD: isQuote ? null : (editingProduct.priceUSD || 100)
+                      });
+                    }}
+                    className="w-full border rounded px-3 py-1.5 bg-white font-semibold"
+                  >
+                    <option value="fixed">Fixed Price (Direct Checkout & Cart)</option>
+                    <option value="quote">Quote-Based (Request Quote Button)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold mb-1">
+                    Price (USD) {editingProduct.pricingType === 'quote' || editingProduct.hasPrice === false ? '(Disabled for Quote)' : '*'}
+                  </label>
                   <input
                     type="number"
                     step="0.01"
-                    required
-                    value={editingProduct.priceUSD || ''}
+                    disabled={editingProduct.pricingType === 'quote' || editingProduct.hasPrice === false}
+                    required={!(editingProduct.pricingType === 'quote' || editingProduct.hasPrice === false)}
+                    placeholder={editingProduct.pricingType === 'quote' || editingProduct.hasPrice === false ? 'Quote Required' : '0.00'}
+                    value={editingProduct.priceUSD ?? ''}
                     onChange={(e) => setEditingProduct({ ...editingProduct, priceUSD: Number(e.target.value) })}
-                    className="w-full border rounded px-3 py-1.5"
+                    className="w-full border rounded px-3 py-1.5 disabled:bg-gray-100 disabled:text-gray-400"
                   />
                 </div>
 

@@ -327,12 +327,18 @@ app.post('/api/admin/products/bulk-upload', authenticateAdmin, (req: Request, re
         return '';
       };
 
+      const hasPriceVal = getVal('HasPrice', 'Has Price', 'has_price', 'PriceAvailable');
+      const pricingTypeVal = getVal('PricingType', 'Pricing Type', 'pricing_type', 'Pricing Model');
+      const rawPrice = getVal('PriceUSD', 'Price ($)', 'Price', 'price', 'Unit Price');
+
       return {
         name: String(getVal('Name', 'Product Name', 'product_name', 'Title') || ''),
         sku: String(getVal('SKU', 'sku', 'Item Number', 'Model Number') || ''),
         category: String(getVal('Category', 'category', 'Product Category') || ''),
         subCategory: String(getVal('SubCategory', 'Sub Category', 'sub_category') || ''),
-        priceUSD: Number(getVal('PriceUSD', 'Price ($)', 'Price', 'price', 'Unit Price') || 0),
+        hasPrice: hasPriceVal !== '' ? hasPriceVal : undefined,
+        pricingType: pricingTypeVal ? (String(pricingTypeVal).toLowerCase().includes('quote') ? 'quote' : 'fixed') : undefined,
+        priceUSD: rawPrice !== '' && rawPrice !== null ? Number(rawPrice) : undefined,
         stockQuantity: Number(getVal('StockQuantity', 'Stock', 'Quantity', 'stock_quantity') || 10),
         brand: String(getVal('Brand', 'brand', 'Manufacturer') || 'Enterprise OEM'),
         description: String(getVal('Description', 'description', 'Details') || ''),
@@ -366,10 +372,12 @@ app.get('/api/admin/products/template', (req: Request, res: Response) => {
         'SKU': 'AXIS-M3075-V',
         'Category': 'Video Surveillance & Cameras',
         'SubCategory': 'Dome Cameras',
+        'HasPrice': 'Yes',
+        'PricingType': 'fixed',
         'PriceUSD': 349.00,
         'StockQuantity': 50,
         'Brand': 'Axis Communications',
-        'Description': 'Compact 4MP mini dome camera for indoor retail and commercial monitoring with WDR and Lightfinder.',
+        'Description': 'Compact 4MP mini dome camera for indoor retail and commercial monitoring with WDR and Lightfinder. Fixed price checkout available.',
         'Features': '4MP Quad HD resolution; Wide Dynamic Range; Forensic capture; Edge storage support',
         'ImageUrl': 'https://images.unsplash.com/photo-1558002038-1055907df827?auto=format&fit=crop&w=800&q=80'
       },
@@ -378,35 +386,41 @@ app.get('/api/admin/products/template', (req: Request, res: Response) => {
         'SKU': 'CISCO-CBS350-24P',
         'Category': 'Networking & Connectivity',
         'SubCategory': 'PoE Switches',
+        'HasPrice': 'Yes',
+        'PricingType': 'fixed',
         'PriceUSD': 620.00,
         'StockQuantity': 30,
         'Brand': 'Cisco',
-        'Description': 'Business 350 series 24-port PoE managed switch with 4 Gigabit SFP combo uplink ports.',
+        'Description': 'Business 350 series 24-port PoE managed switch with 4 Gigabit SFP combo uplink ports. Fixed price checkout available.',
         'Features': '24 Gigabit PoE ports; 195W power budget; Layer 2 and Layer 3 routing; Intuitive dashboard',
         'ImageUrl': 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?auto=format&fit=crop&w=800&q=80'
       },
       {
-        'Name': 'HID Signo 40 Smart Card and Mobile Access Reader OSDP',
-        'SKU': 'HID-SIGNO-40',
-        'Category': 'Access Control & Door Security',
-        'SubCategory': 'Access Control Readers',
-        'PriceUSD': 210.00,
-        'StockQuantity': 100,
-        'Brand': 'HID Global',
-        'Description': 'Next generation versatile access control reader supporting mobile credentials and high security Seos cards.',
-        'Features': 'Bluetooth & NFC support; OSDP with Secure Channel; Sleek mullion mount; Apple Wallet support',
-        'ImageUrl': 'https://images.unsplash.com/photo-1558002038-1055907df827?auto=format&fit=crop&w=800&q=80'
+        'Name': 'FLIR Ranger HRC High-Definition Long-Range Thermal Bi-Spectral Radar PTZ',
+        'SKU': 'FLIR-HRC-RADAR',
+        'Category': 'Video Surveillance & Cameras',
+        'SubCategory': 'Thermal & Specialty Cameras',
+        'HasPrice': 'No',
+        'PricingType': 'quote',
+        'PriceUSD': '',
+        'StockQuantity': 5,
+        'Brand': 'Teledyne FLIR',
+        'Description': 'Military-grade high-definition cooled thermal surveillance with integrated radar slew-to-cue. Requires custom quotation and export licensing.',
+        'Features': 'Cooled MWIR thermal detector; 20 km vehicle detection; Integrated perimeter radar interface; Military MIL-STD-810G',
+        'ImageUrl': 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&w=800&q=80'
       },
       {
-        'Name': 'Felicity Solar 5kW 48V Hybrid Solar Inverter with Dual MPPT',
-        'SKU': 'FLC-HYB-5KW',
+        'Name': 'Modular Megawatt Microgrid Container BESS Solar Battery Storage',
+        'SKU': 'SPINEL-BESS-1MWH',
         'Category': 'Renewable Energy',
-        'SubCategory': 'Smart Hybrid Inverters',
-        'PriceUSD': 1180.00,
-        'StockQuantity': 25,
-        'Brand': 'Felicity Solar',
-        'Description': 'Pure sine wave hybrid inverter with 48V battery system and WiFi remote monitoring for critical backup.',
-        'Features': '5000W output; Built-in MPPT solar charge controller; Parallel operation up to 6 units; LCD screen',
+        'SubCategory': 'Lithium Battery Storage',
+        'HasPrice': 'No',
+        'PricingType': 'quote',
+        'PriceUSD': '',
+        'StockQuantity': 3,
+        'Brand': 'Spinel Power Systems',
+        'Description': 'Industrial 1MWh ISO containerized energy storage system with liquid thermal management, fire suppression, and grid-forming inverters. Requires tailored quote.',
+        'Features': '1MWh LiFePO4 chemistry; 6000 cycle life at 90% DOD; Built-in HVAC and aerosol suppression; SCADA EMS connectivity',
         'ImageUrl': 'https://images.unsplash.com/photo-1509391365360-2e959784a276?auto=format&fit=crop&w=800&q=80'
       }
     ];
@@ -420,6 +434,8 @@ app.get('/api/admin/products/template', (req: Request, res: Response) => {
       { wch: 18 }, // SKU
       { wch: 32 }, // Category
       { wch: 25 }, // SubCategory
+      { wch: 12 }, // HasPrice
+      { wch: 14 }, // PricingType
       { wch: 12 }, // PriceUSD
       { wch: 14 }, // StockQuantity
       { wch: 22 }, // Brand
@@ -442,7 +458,7 @@ app.get('/api/admin/products/template', (req: Request, res: Response) => {
     const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename="SecStore_Bulk_Products_Template.xlsx"');
+    res.setHeader('Content-Disposition', 'attachment; filename="Spinel_Bulk_Products_Template.xlsx"');
     res.send(buffer);
   } catch (err: any) {
     res.status(500).json({ error: 'Failed to generate template: ' + err.message });

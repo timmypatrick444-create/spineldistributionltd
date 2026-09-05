@@ -6,7 +6,9 @@ export interface Product {
   sku: string;
   category: string;
   subCategory: string;
-  priceUSD: number;
+  priceUSD?: number | null;
+  hasPrice?: boolean;
+  pricingType?: 'fixed' | 'quote';
   originalPriceUSD?: number;
   rating: number;
   reviewsCount: number;
@@ -18,7 +20,7 @@ export interface Product {
   specifications: Record<string, string>;
   imageUrl: string;
   galleryImages?: string[];
-  badge?: 'Best Seller' | "Spinel's Choice" | 'Prime Deal' | 'Enterprise Certified' | 'New';
+  badge?: 'Best Seller' | "Spinel's Choice" | 'Prime Deal' | 'Enterprise Certified' | 'New' | 'Quote Required' | 'Custom Quotation';
   isPrimeEligible?: boolean;
   freeDelivery?: boolean;
   warrantyYears?: number;
@@ -100,12 +102,34 @@ export interface BulkUploadRow {
   sku?: string;
   category: string;
   subCategory: string;
-  priceUSD: number;
-  stockQuantity: number;
+  hasPrice?: string | boolean; // 'yes'/'no' or 'true'/'false'
+  pricingType?: 'fixed' | 'quote'; // 'fixed' for checkout, 'quote' for request quote
+  priceUSD?: number | string; // Optional if hasPrice is no
+  stockQuantity?: number;
   brand: string;
   description: string;
   features?: string;
   imageUrl?: string;
+}
+
+export interface QuoteRequest {
+  id: string;
+  quoteNumber: string;
+  customerName: string;
+  companyName: string;
+  email: string;
+  phone: string;
+  deliveryCountry: string;
+  projectTimeline: string;
+  productId?: string;
+  productName?: string;
+  productSku?: string;
+  productCategory?: string;
+  productImageUrl?: string;
+  quantity: number;
+  specificationsOrNotes: string;
+  status: 'Received' | 'In Review' | 'Quotation Sent' | 'Closed';
+  createdAt: string;
 }
 
 export interface BulkUploadResponse {

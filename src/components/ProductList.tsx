@@ -21,6 +21,7 @@ interface ProductListProps {
   searchQuery: string;
   onSelectProduct: (product: Product) => void;
   onAddToCart: (product: Product, e: React.MouseEvent) => void;
+  onRequestQuote?: (product: Product, e: React.MouseEvent) => void;
   onSelectCategory: (category: string) => void;
   onSelectSubCategory: (category: string, subCategory: string) => void;
   onClearFilters: () => void;
@@ -41,6 +42,7 @@ export const ProductList: React.FC<ProductListProps> = ({
   searchQuery,
   onSelectProduct,
   onAddToCart,
+  onRequestQuote,
   onSelectCategory,
   onSelectSubCategory,
   onClearFilters,
@@ -271,6 +273,7 @@ export const ProductList: React.FC<ProductListProps> = ({
                     exchangeRate={exchangeRate}
                     onSelectProduct={onSelectProduct}
                     onAddToCart={onAddToCart}
+                    onRequestQuote={onRequestQuote ? (prod, e) => onRequestQuote(prod, e) : undefined}
                   />
                 ))}
               </div>

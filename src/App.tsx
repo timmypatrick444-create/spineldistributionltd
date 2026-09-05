@@ -16,12 +16,25 @@ import { CategoryDrawer } from './components/CategoryDrawer.tsx';
 import { AuthModal } from './components/AuthModal.tsx';
 import { Footer } from './components/Footer.tsx';
 import { CategoryProductSlider } from './components/CategoryProductSlider.tsx';
+import { QuoteRequestPage } from './components/QuoteRequestPage.tsx';
+import { CustomerSignInPage } from './components/CustomerSignInPage.tsx';
 
-type ViewType = 'home' | 'catalog' | 'product-detail' | 'cart' | 'checkout' | 'orders' | 'admin' | 'admin-dashboard';
+type ViewType =
+  | 'home'
+  | 'catalog'
+  | 'product-detail'
+  | 'cart'
+  | 'checkout'
+  | 'orders'
+  | 'quote-request'
+  | 'signin'
+  | 'admin'
+  | 'admin-dashboard';
 
 export default function App() {
   // Navigation & Routing State
   const [currentView, setCurrentView] = useState<ViewType>('home');
+  const [quoteProduct, setQuoteProduct] = useState<Product | null>(null);
 
   // Currency & Server Settings
   const [currency, setCurrency] = useState<Currency>('USD');
@@ -98,6 +111,12 @@ export default function App() {
         setCurrentView('checkout');
       } else if (path === '/orders') {
         setCurrentView('orders');
+      } else if (path === '/quote' || path === '/quote-request') {
+        setCurrentView('quote-request');
+      } else if (path === '/signin') {
+        setCurrentView('signin');
+      } else {
+        setCurrentView('home');
       }
     };
 
@@ -182,20 +201,27 @@ export default function App() {
   }, [currentView, selectedCategory, selectedSubCategory, searchQuery, sortBy]);
 
   // Navigation router helper
-  const navigateTo = (view: ViewType, params?: any) => {
-    setCurrentView(view);
+  const navigateTo = (view: ViewType | string, params?: any) => {
+    const resolvedView =
+      view === 'quote' ? 'quote-request' : view === 'customer-signin' ? 'signin' : (view as ViewType);
+
+    setCurrentView(resolvedView);
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
-    if (view === 'admin') {
+    if (resolvedView === 'admin') {
       window.history.pushState(null, '', '/admin');
-    } else if (view === 'admin-dashboard') {
+    } else if (resolvedView === 'admin-dashboard') {
       window.history.pushState(null, '', '/admin/dashboard');
-    } else if (view === 'cart') {
+    } else if (resolvedView === 'cart') {
       window.history.pushState(null, '', '/cart');
-    } else if (view === 'checkout') {
+    } else if (resolvedView === 'checkout') {
       window.history.pushState(null, '', '/checkout');
-    } else if (view === 'orders') {
+    } else if (resolvedView === 'orders') {
       window.history.pushState(null, '', '/orders');
+    } else if (resolvedView === 'quote-request') {
+      window.history.pushState(null, '', '/quote');
+    } else if (resolvedView === 'signin') {
+      window.history.pushState(null, '', '/signin');
     } else {
       window.history.pushState(null, '', '/');
     }
@@ -207,6 +233,14 @@ export default function App() {
     if (params?.search !== undefined) {
       setSearchQuery(params.search);
     }
+  };
+
+  // Trigger Request Quote page with product pre-populated
+  const handleRequestQuote = (product?: Product) => {
+    if (product) {
+      setQuoteProduct(product);
+    }
+    navigateTo('quote-request');
   };
 
   // Select a product and open in full page
@@ -614,6 +648,7 @@ export default function App() {
             )}
             onAddToCart={handleAddToCart}
             onBuyNow={handleBuyNow}
+            onRequestQuote={handleRequestQuote}
             onSelectCategory={(cat) => {
               setSelectedCategory(cat);
               setSelectedSubCategory('');
@@ -668,6 +703,7 @@ export default function App() {
             searchQuery={searchQuery}
             onSelectProduct={handleSelectProduct}
             onAddToCart={handleAddToCart}
+            onRequestQuote={handleRequestQuote}
             onSelectCategory={(cat) => {
               setSelectedCategory(cat);
               setSelectedSubCategory('');
@@ -686,6 +722,31 @@ export default function App() {
             currentPage={currentPage}
             hasMore={hasMore}
             onPageChange={(page) => fetchCatalogProducts(page)}
+          />
+        )}
+
+        {/* VIEW: REQUEST QUOTE FULL PAGE */}
+        {currentView === 'quote-request' && (
+          <QuoteRequestPage
+            initialProduct={quoteProduct || selectedProduct}
+            allProducts={allProducts}
+            onNavigate={(view, params) => navigateTo(view, params)}
+            onBack={() => navigateTo('home')}
+          />
+        )}
+
+        {/* VIEW: CUSTOMER SIGN-IN / REGISTER FULL PAGE */}
+        {currentView === 'signin' && (
+          <CustomerSignInPage
+            onLoginSuccess={(loggedUser, token) => {
+              setUser(loggedUser);
+              try {
+                localStorage.setItem('spinel_user', JSON.stringify(loggedUser));
+                localStorage.setItem('spinel_token', token);
+              } catch {}
+              navigateTo('home');
+            }}
+            onNavigateHome={() => navigateTo('home')}
           />
         )}
 

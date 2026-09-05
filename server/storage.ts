@@ -383,11 +383,40 @@ export function processBulkUpload(rows: BulkUploadRow[]): { uploaded: number; fa
     // Match or fallback category
     const matchedCategory = categoryMap.get(row.category.toLowerCase().trim()) || row.category.trim();
 
-    const price = Number(row.priceUSD);
-    if (isNaN(price) || price < 0) {
-      errors.push(`Row ${rowNum}: Price (${row.priceUSD}) is invalid.`);
-      failed++;
-      continue;
+    // Check whether product has a fixed price or is quote-based
+    const hasPriceRaw = String(row.hasPrice ?? '').trim().toLowerCase();
+    const pricingTypeRaw = String(row.pricingType ?? '').trim().toLowerCase();
+    const rawPriceStr = row.priceUSD !== undefined && row.priceUSD !== null ? String(row.priceUSD).trim() : '';
+
+    const isExplicitlyQuote =
+      hasPriceRaw === 'no' ||
+      hasPriceRaw === 'false' ||
+      hasPriceRaw === 'quote' ||
+      pricingTypeRaw === 'quote' ||
+      rawPriceStr === '' ||
+      rawPriceStr === '0' ||
+      rawPriceStr === 'quote';
+
+    let hasPrice = !isExplicitlyQuote;
+    let pricingType: 'fixed' | 'quote' = hasPrice ? 'fixed' : 'quote';
+    let priceUSD: number | null = null;
+
+    if (hasPrice) {
+      const parsedPrice = Number(row.priceUSD);
+      if (isNaN(parsedPrice) || parsedPrice <= 0) {
+        // If price is invalid but not marked as quote, treat as quote or flag error
+        if (rawPriceStr === '') {
+          hasPrice = false;
+          pricingType = 'quote';
+          priceUSD = null;
+        } else {
+          errors.push(`Row ${rowNum}: Price (${row.priceUSD}) is invalid.`);
+          failed++;
+          continue;
+        }
+      } else {
+        priceUSD = parsedPrice;
+      }
     }
 
     const stock = Number(row.stockQuantity);
@@ -407,8 +436,10 @@ export function processBulkUpload(rows: BulkUploadRow[]): { uploaded: number; fa
       sku,
       category: matchedCategory,
       subCategory: row.subCategory?.trim() || 'General Equipment',
-      priceUSD: price,
-      originalPriceUSD: price > 50 ? Math.round(price * 1.15) : undefined,
+      hasPrice,
+      pricingType,
+      priceUSD,
+      originalPriceUSD: priceUSD && priceUSD > 50 ? Math.round(priceUSD * 1.15) : undefined,
       rating: 4.8 + Math.round(Math.random() * 2) / 10,
       reviewsCount: Math.floor(10 + Math.random() * 80),
       inStock: stockQuantity > 0,
@@ -423,7 +454,7 @@ export function processBulkUpload(rows: BulkUploadRow[]): { uploaded: number; fa
         'Warranty': '3 Years Commercial'
       },
       imageUrl: row.imageUrl?.trim() || 'https://images.unsplash.com/photo-1557597774-9d273605dfa9?auto=format&fit=crop&w=800&q=80',
-      badge: price > 1000 ? 'Enterprise Certified' : 'Best Seller',
+      badge: hasPrice ? (priceUSD && priceUSD > 1000 ? 'Enterprise Certified' : 'Best Seller') : 'Quote Required',
       isPrimeEligible: true,
       freeDelivery: true,
       warrantyYears: 3,
