@@ -32,7 +32,16 @@ export default function App() {
   const [allProducts, setAllProducts] = useState<Product[]>(SEED_PRODUCTS);
   const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(SEED_PRODUCTS[0] || null);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(() => {
+    try {
+      const savedId = localStorage.getItem('spinel_selected_product_id');
+      if (savedId) {
+        const match = SEED_PRODUCTS.find((p) => p.id === savedId);
+        if (match) return match;
+      }
+    } catch {}
+    return SEED_PRODUCTS[0] || null;
+  });
 
   // Filters & Search
   const [selectedCategory, setSelectedCategory] = useState<string>('');
@@ -203,6 +212,9 @@ export default function App() {
   // Select a product and open in full page
   const handleSelectProduct = (product: Product) => {
     setSelectedProduct(product);
+    try {
+      localStorage.setItem('spinel_selected_product_id', product.id);
+    } catch {}
     navigateTo('product-detail');
   };
 
@@ -589,11 +601,17 @@ export default function App() {
         )}
 
         {/* VIEW 2: PRODUCT DETAIL FULL PAGE (NO MODAL) */}
-        {currentView === 'product-detail' && selectedProduct && (
+        {currentView === 'product-detail' && (
           <ProductDetailPage
-            product={selectedProduct}
+            product={selectedProduct || allProducts[0] || SEED_PRODUCTS[0]}
             currency={currency}
             exchangeRate={exchangeRate}
+            allProducts={allProducts}
+            relatedProducts={(allProducts || []).filter(
+              (p) =>
+                p.category === (selectedProduct?.category || allProducts[0]?.category) &&
+                p.id !== (selectedProduct?.id || allProducts[0]?.id)
+            )}
             onAddToCart={handleAddToCart}
             onBuyNow={handleBuyNow}
             onSelectCategory={(cat) => {
@@ -601,6 +619,7 @@ export default function App() {
               setSelectedSubCategory('');
               navigateTo('catalog');
             }}
+            onSelectProduct={handleSelectProduct}
             onSelectRelatedProduct={handleSelectProduct}
             onBack={() => navigateTo('catalog')}
           />
