@@ -670,9 +670,13 @@ export default function App() {
             onRemoveItem={handleRemoveFromCart}
             onClearCart={handleClearCart}
             onProceedToCheckout={() => navigateTo('checkout')}
+            onNavigateHome={() => navigateTo('home')}
+            onNavigateCatalog={() => navigateTo('catalog')}
             onContinueShopping={() => navigateTo('catalog')}
+            recommendedProducts={(allProducts || []).slice(0, 12)}
             onSelectProduct={handleSelectProduct}
             onAddToCart={handleAddToCart}
+            onRequestQuote={handleRequestQuote}
           />
         )}
 

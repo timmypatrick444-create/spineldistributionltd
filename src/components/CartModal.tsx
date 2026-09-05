@@ -28,8 +28,12 @@ export const CartModal: React.FC<CartModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const totalItemsCount = cartItems.reduce((acc, it) => acc + it.quantity, 0);
-  const subtotalUSD = cartItems.reduce((acc, it) => acc + it.product.priceUSD * it.quantity, 0);
+  const safeCartItems = Array.isArray(cartItems) ? cartItems : [];
+  const totalItemsCount = safeCartItems.reduce((acc, it) => acc + (it.quantity || 1), 0);
+  const subtotalUSD = safeCartItems.reduce(
+    (acc, it) => acc + (it.product?.priceUSD || 0) * (it.quantity || 1),
+    0
+  );
   const freeFreightThresholdUSD = 1000;
   const freeFreightUnlocked = subtotalUSD >= freeFreightThresholdUSD;
   const progressPercent = Math.min(100, Math.round((subtotalUSD / freeFreightThresholdUSD) * 100));
@@ -102,7 +106,11 @@ export const CartModal: React.FC<CartModalProps> = ({
                     <p className="text-[11px] text-gray-500 mt-0.5">SKU: {product.sku}</p>
 
                     <div className="mt-1 font-bold text-xs text-[#b12704]">
-                      {formatPrice(product.priceUSD, currency, exchangeRate)}
+                      {product.pricingType === 'quote' || product.hasPrice === false || !product.priceUSD ? (
+                        <span className="text-amber-800 text-[11px] font-semibold">Quote Required</span>
+                      ) : (
+                        formatPrice(product.priceUSD, currency, exchangeRate)
+                      )}
                     </div>
 
                     <div className="mt-2 flex items-center justify-between">
