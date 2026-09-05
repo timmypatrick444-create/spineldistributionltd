@@ -64,14 +64,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           <X className="w-5 h-5" />
         </button>
 
-        {/* Amazon Logo */}
+        {/* Spinel Distribution Logo */}
         <div className="text-center mb-5">
-          <div className="flex items-baseline justify-center">
-            <span className="text-2xl font-black tracking-tighter text-[#131921] font-sans">amazon</span>
-            <span className="text-xs font-bold text-[#febd69] ml-0.5">.secstore</span>
+          <div className="flex items-center justify-center mb-2">
+            <img
+              src="https://res.cloudinary.com/bmv4hvtk/image/upload/v1788619290/Spinel_Distribution.jpg"
+              alt="Spinel Distribution Ltd"
+              className="h-9 w-auto object-contain"
+              referrerPolicy="no-referrer"
+            />
           </div>
-          <span className="text-xs text-gray-500 block mt-0.5">
-            {isRegister ? 'Create Enterprise Customer Account' : 'Customer Sign-In'}
+          <span className="text-xs text-gray-500 block mt-0.5 font-medium">
+            {isRegister ? 'Create Customer Account' : 'Customer Sign-In'}
           </span>
         </div>
 
@@ -173,7 +177,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </p>
           ) : (
             <p>
-              New to Amazon SecStore?{' '}
+              New to Spinel Distribution?{' '}
               <button
                 type="button"
                 onClick={() => setIsRegister(true)}

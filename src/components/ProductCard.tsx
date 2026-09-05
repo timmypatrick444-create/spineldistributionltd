@@ -31,7 +31,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             className={`text-[10px] font-bold px-2 py-0.5 rounded-xs uppercase tracking-tight shadow-xs ${
               product.badge === 'Best Seller'
                 ? 'bg-[#e67a00] text-white'
-                : product.badge === "Amazon's Choice"
+                : product.badge === "Spinel's Choice"
                 ? 'bg-[#232f3e] text-white'
                 : 'bg-emerald-700 text-white'
             }`}

@@ -1,47 +1,38 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Shield,
-  Truck,
-  RotateCcw,
-  Headphones,
-  CheckCircle,
-  Zap,
-  TrendingUp,
-  Sparkles,
-  ChevronRight
-} from 'lucide-react';
 import { Product, Currency, User, CartItem, Order } from './types.ts';
 import { PRODUCT_CATEGORIES } from './data/categories.ts';
+import { SEED_PRODUCTS } from './data/seedProducts.ts';
 import { Header } from './components/Header.tsx';
 import { HeroBanner } from './components/HeroBanner.tsx';
 import { QuadCard, QuadItem } from './components/QuadCard.tsx';
-import { ProductCard } from './components/ProductCard.tsx';
 import { ProductList } from './components/ProductList.tsx';
-import { ProductDetailModal } from './components/ProductDetailModal.tsx';
-import { CartModal } from './components/CartModal.tsx';
-import { CheckoutModal } from './components/CheckoutModal.tsx';
+import { ProductDetailPage } from './components/ProductDetailPage.tsx';
+import { CartPage } from './components/CartPage.tsx';
+import { CheckoutPage } from './components/CheckoutPage.tsx';
 import { OrdersView } from './components/OrdersView.tsx';
 import { AdminLogin } from './components/AdminLogin.tsx';
 import { AdminDashboard } from './components/AdminDashboard.tsx';
 import { CategoryDrawer } from './components/CategoryDrawer.tsx';
 import { AuthModal } from './components/AuthModal.tsx';
 import { Footer } from './components/Footer.tsx';
+import { CategoryProductSlider } from './components/CategoryProductSlider.tsx';
+
+type ViewType = 'home' | 'catalog' | 'product-detail' | 'cart' | 'checkout' | 'orders' | 'admin' | 'admin-dashboard';
 
 export default function App() {
   // Navigation & Routing State
-  const [currentView, setCurrentView] = useState<'home' | 'catalog' | 'orders' | 'admin' | 'admin-dashboard'>('home');
+  const [currentView, setCurrentView] = useState<ViewType>('home');
 
   // Currency & Server Settings
-  // User requirement: "Default price are in dollars but create a 1-dropdown for Naira and Dollar"
   const [currency, setCurrency] = useState<Currency>('USD');
   const [exchangeRate, setExchangeRate] = useState<number>(1550);
   const [deliveryLocation, setDeliveryLocation] = useState<string>('United States');
 
   // Products Data
+  const [allProducts, setAllProducts] = useState<Product[]>(SEED_PRODUCTS);
   const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
-  const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(SEED_PRODUCTS[0] || null);
 
   // Filters & Search
   const [selectedCategory, setSelectedCategory] = useState<string>('');
@@ -54,19 +45,17 @@ export default function App() {
   // Cart & Orders State
   const [cartItems, setCartItems] = useState<CartItem[]>(() => {
     try {
-      const saved = localStorage.getItem('secstore_cart');
+      const saved = localStorage.getItem('spinel_cart') || localStorage.getItem('secstore_cart');
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
     }
   });
-  const [isCartOpen, setIsCartOpen] = useState(false);
-  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
   // User & Admin State
   const [user, setUser] = useState<User | null>(() => {
     try {
-      const saved = localStorage.getItem('secstore_user');
+      const saved = localStorage.getItem('spinel_user') || localStorage.getItem('secstore_user');
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
@@ -94,8 +83,12 @@ export default function App() {
         } else {
           setCurrentView('admin');
         }
-      } else {
-        setCurrentView('home');
+      } else if (path === '/cart') {
+        setCurrentView('cart');
+      } else if (path === '/checkout') {
+        setCurrentView('checkout');
+      } else if (path === '/orders') {
+        setCurrentView('orders');
       }
     };
 
@@ -106,7 +99,7 @@ export default function App() {
 
   // Save cart to local storage
   useEffect(() => {
-    localStorage.setItem('secstore_cart', JSON.stringify(cartItems));
+    localStorage.setItem('spinel_cart', JSON.stringify(cartItems));
   }, [cartItems]);
 
   // Fetch Server Configuration (USD to NGN Exchange rate & Paystack info)
@@ -127,20 +120,22 @@ export default function App() {
     loadConfig();
   }, []);
 
-  // Fetch initial featured products
+  // Fetch all products on initial load
   useEffect(() => {
-    const loadFeatured = async () => {
+    const loadInitialProducts = async () => {
       try {
-        const res = await fetch('/api/products?limit=12&badge=Best Seller');
+        const res = await fetch('/api/products?limit=100');
         if (res.ok) {
           const data = await res.json();
-          setFeaturedProducts(data.items || []);
+          if (data.items && data.items.length > 0) {
+            setAllProducts(data.items);
+          }
         }
       } catch (err) {
-        console.error('Failed to load featured products:', err);
+        console.error('Failed to load initial products:', err);
       }
     };
-    loadFeatured();
+    loadInitialProducts();
   }, []);
 
   // Fetch catalog products whenever query/filters change
@@ -178,7 +173,7 @@ export default function App() {
   }, [currentView, selectedCategory, selectedSubCategory, searchQuery, sortBy]);
 
   // Navigation router helper
-  const navigateTo = (view: 'home' | 'catalog' | 'orders' | 'admin' | 'admin-dashboard', params?: any) => {
+  const navigateTo = (view: ViewType, params?: any) => {
     setCurrentView(view);
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
@@ -186,6 +181,12 @@ export default function App() {
       window.history.pushState(null, '', '/admin');
     } else if (view === 'admin-dashboard') {
       window.history.pushState(null, '', '/admin/dashboard');
+    } else if (view === 'cart') {
+      window.history.pushState(null, '', '/cart');
+    } else if (view === 'checkout') {
+      window.history.pushState(null, '', '/checkout');
+    } else if (view === 'orders') {
+      window.history.pushState(null, '', '/orders');
     } else {
       window.history.pushState(null, '', '/');
     }
@@ -197,6 +198,12 @@ export default function App() {
     if (params?.search !== undefined) {
       setSearchQuery(params.search);
     }
+  };
+
+  // Select a product and open in full page
+  const handleSelectProduct = (product: Product) => {
+    setSelectedProduct(product);
+    navigateTo('product-detail');
   };
 
   // Cart operations
@@ -211,7 +218,6 @@ export default function App() {
       }
       return [...prev, { product, quantity: qty }];
     });
-    setIsCartOpen(true);
   };
 
   const handleUpdateQuantity = (productId: string, quantity: number) => {
@@ -230,8 +236,7 @@ export default function App() {
 
   const handleBuyNow = (product: Product, quantity: number) => {
     handleAddToCart(product, quantity);
-    setIsCartOpen(false);
-    setIsCheckoutOpen(true);
+    navigateTo('checkout');
   };
 
   // Search execution
@@ -242,7 +247,7 @@ export default function App() {
     navigateTo('catalog');
   };
 
-  // Quad Cards Datasets for Amazon Homepage
+  // Quad Cards Datasets for Homepage
   const QUAD_1_ITEMS: QuadItem[] = [
     {
       title: '4K Starlight PTZ Cameras',
@@ -335,9 +340,14 @@ export default function App() {
     }
   ];
 
+  // Helper to filter products by category for sliders
+  const getProductsByCategory = (catName: string) => {
+    return allProducts.filter((p) => p.category.toLowerCase() === catName.toLowerCase());
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-[#eaeded] font-sans antialiased text-gray-900">
-      {/* Primary Amazon Navigation Header */}
+      {/* Primary Spinel Distribution Navigation Header */}
       <Header
         currentView={currentView}
         onNavigate={navigateTo}
@@ -349,9 +359,10 @@ export default function App() {
         onOpenAuth={() => setIsAuthModalOpen(true)}
         onLogout={() => {
           setUser(null);
+          localStorage.removeItem('spinel_user');
           localStorage.removeItem('secstore_user');
         }}
-        onOpenCart={() => setIsCartOpen(true)}
+        onOpenCart={() => navigateTo('cart')}
         onOpenCategoriesDrawer={() => setIsCategoryDrawerOpen(true)}
         selectedCategory={selectedCategory}
         onSelectCategory={setSelectedCategory}
@@ -366,8 +377,8 @@ export default function App() {
       <main className="flex-1">
         {/* VIEW 1: HOME PAGE */}
         {currentView === 'home' && (
-          <div className="space-y-6">
-            {/* Amazon Rotating Hero Banner */}
+          <div className="space-y-6 pb-12">
+            {/* Rotating Hero Banner */}
             <HeroBanner
               onExploreCategory={(cat) => {
                 setSelectedCategory(cat);
@@ -376,7 +387,7 @@ export default function App() {
               }}
             />
 
-            {/* Amazon 4-Quad Card Grid Overlapping Hero */}
+            {/* 4-Quad Card Grid Overlapping Hero */}
             <div className="max-w-7xl mx-auto px-4 -mt-24 sm:-mt-32 md:-mt-44 relative z-20">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <QuadCard
@@ -425,49 +436,137 @@ export default function App() {
               </div>
             </div>
 
-            {/* Featured Best Sellers & Deals Carousel */}
-            <div className="max-w-7xl mx-auto px-4 pt-4">
-              <div className="bg-white p-5 rounded-xs border border-gray-200 shadow-xs">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="font-bold text-lg text-gray-900 leading-tight">
-                      Best Sellers in Enterprise Physical Security
-                    </h3>
-                    <p className="text-xs text-gray-500">
-                      Top deployed industrial surveillance and biometric hardware.
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => navigateTo('catalog')}
-                    className="text-xs font-semibold text-[#007185] hover:text-[#c45500] hover:underline"
-                  >
-                    Explore all security systems →
-                  </button>
-                </div>
+            {/* Categorized Product Sliders (Clean Horizontal Rows) */}
+            <div className="max-w-7xl mx-auto px-4 space-y-6 pt-2">
+              {/* Slider 1: Video Surveillance & Cameras */}
+              <CategoryProductSlider
+                title="Video Surveillance & Ultra-HD Cameras"
+                subtitle="IP Cameras, 4K PTZ Starlight, AI Facial Analytics & Thermal Imaging"
+                category="Video Surveillance & Cameras"
+                products={getProductsByCategory('Video Surveillance & Cameras')}
+                currency={currency}
+                exchangeRate={exchangeRate}
+                onSelectProduct={handleSelectProduct}
+                onAddToCart={handleAddToCart}
+                onViewAll={(cat) => {
+                  setSelectedCategory(cat);
+                  setSelectedSubCategory('');
+                  navigateTo('catalog');
+                }}
+              />
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {featuredProducts.slice(0, 8).map((product) => (
-                    <ProductCard
-                      key={product.id}
-                      product={product}
-                      currency={currency}
-                      exchangeRate={exchangeRate}
-                      onSelectProduct={setSelectedProduct}
-                      onAddToCart={handleAddToCart}
-                    />
-                  ))}
-                </div>
-              </div>
+              {/* Slider 2: Access Control & Door Security */}
+              <CategoryProductSlider
+                title="Biometric Access Control & Physical Security"
+                subtitle="Encrypted RFID Readers, OSDP 2.2 Controllers & Heavy-Duty Maglocks"
+                category="Access Control & Door Security"
+                products={getProductsByCategory('Access Control & Door Security')}
+                currency={currency}
+                exchangeRate={exchangeRate}
+                onSelectProduct={handleSelectProduct}
+                onAddToCart={handleAddToCart}
+                onViewAll={(cat) => {
+                  setSelectedCategory(cat);
+                  setSelectedSubCategory('');
+                  navigateTo('catalog');
+                }}
+              />
+
+              {/* Slider 3: Networking & Connectivity */}
+              <CategoryProductSlider
+                title="Industrial Networking & PoE Infrastructure"
+                subtitle="Managed Gigabit Switches, Outdoor Wireless Bridges & Fiber Transceivers"
+                category="Networking & Connectivity"
+                products={getProductsByCategory('Networking & Connectivity')}
+                currency={currency}
+                exchangeRate={exchangeRate}
+                onSelectProduct={handleSelectProduct}
+                onAddToCart={handleAddToCart}
+                onViewAll={(cat) => {
+                  setSelectedCategory(cat);
+                  setSelectedSubCategory('');
+                  navigateTo('catalog');
+                }}
+              />
+
+              {/* Slider 4: Renewable Energy & Clean Power */}
+              <CategoryProductSlider
+                title="Solar & Renewable Energy Solutions"
+                subtitle="Pure Sine Hybrid Inverters, Lithium LiFePO4 Storage & Monocrystalline Arrays"
+                category="Renewable Energy"
+                products={getProductsByCategory('Renewable Energy')}
+                currency={currency}
+                exchangeRate={exchangeRate}
+                onSelectProduct={handleSelectProduct}
+                onAddToCart={handleAddToCart}
+                onViewAll={(cat) => {
+                  setSelectedCategory(cat);
+                  setSelectedSubCategory('');
+                  navigateTo('catalog');
+                }}
+              />
+
+              {/* Slider 5: Security Sensors & Detection */}
+              <CategoryProductSlider
+                title="Perimeter Intrusion Detection & Radar"
+                subtitle="Dual-Tech PIR Detectors, Microwave Radar & Long-Range Photoelectric Beams"
+                category="Security Sensors & Detection"
+                products={getProductsByCategory('Security Sensors & Detection')}
+                currency={currency}
+                exchangeRate={exchangeRate}
+                onSelectProduct={handleSelectProduct}
+                onAddToCart={handleAddToCart}
+                onViewAll={(cat) => {
+                  setSelectedCategory(cat);
+                  setSelectedSubCategory('');
+                  navigateTo('catalog');
+                }}
+              />
+
+              {/* Slider 6: Public Address (PAGA) System */}
+              <CategoryProductSlider
+                title="Public Address & Emergency Communication"
+                subtitle="IP Horn Speakers, Network Paging Microphones & Intercom Master Stations"
+                category="Public Address (PAGA) System"
+                products={getProductsByCategory('Public Address (PAGA) System')}
+                currency={currency}
+                exchangeRate={exchangeRate}
+                onSelectProduct={handleSelectProduct}
+                onAddToCart={handleAddToCart}
+                onViewAll={(cat) => {
+                  setSelectedCategory(cat);
+                  setSelectedSubCategory('');
+                  navigateTo('catalog');
+                }}
+              />
             </div>
 
             {/* 16 Category Quick Directory Strip */}
             <div className="max-w-7xl mx-auto px-4">
-              <div className="bg-white p-6 rounded-xs border border-gray-200 shadow-xs">
-                <h3 className="font-bold text-base text-gray-900 mb-3">
-                  Shop By Specialized Department
-                </h3>
+              <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-xs">
+                <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
+                  <div>
+                    <h3 className="font-bold text-base sm:text-lg text-gray-900">
+                      Explore All 16 Specialized Departments
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      High-availability hardware for commercial and critical facilities
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCategory('');
+                      setSelectedSubCategory('');
+                      navigateTo('catalog');
+                    }}
+                    className="text-xs font-semibold text-[#007185] hover:text-[#c45500] hover:underline"
+                  >
+                    View entire catalog →
+                  </button>
+                </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 text-center text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-8 gap-3 text-center text-xs">
                   {PRODUCT_CATEGORIES.map((cat) => (
                     <div
                       key={cat.id}
@@ -476,7 +575,7 @@ export default function App() {
                         setSelectedSubCategory('');
                         navigateTo('catalog');
                       }}
-                      className="p-3 bg-gray-50 hover:bg-amber-50/60 rounded border border-gray-200 hover:border-[#f08804] cursor-pointer transition-all flex flex-col items-center justify-center group"
+                      className="p-3 bg-gray-50/80 hover:bg-amber-50/70 rounded-lg border border-gray-200 hover:border-[#f08804] cursor-pointer transition-all flex flex-col items-center justify-center group shadow-2xs"
                     >
                       <span className="font-semibold text-gray-800 group-hover:text-[#c45500] line-clamp-2">
                         {cat.name}
@@ -486,47 +585,59 @@ export default function App() {
                 </div>
               </div>
             </div>
-
-            {/* Enterprise Trust Badges Banner */}
-            <div className="max-w-7xl mx-auto px-4 pb-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
-                <div className="bg-white p-4 rounded border border-gray-200 flex items-center gap-3">
-                  <Truck className="w-8 h-8 text-[#f08804] shrink-0" />
-                  <div>
-                    <h4 className="font-bold text-gray-900">Worldwide Air Freight</h4>
-                    <p className="text-gray-500">Expedited container shipping & insured delivery</p>
-                  </div>
-                </div>
-
-                <div className="bg-white p-4 rounded border border-gray-200 flex items-center gap-3">
-                  <Shield className="w-8 h-8 text-emerald-600 shrink-0" />
-                  <div>
-                    <h4 className="font-bold text-gray-900">Paystack Live Protection</h4>
-                    <p className="text-gray-500">Dual currency (USD & NGN) with instant settlement</p>
-                  </div>
-                </div>
-
-                <div className="bg-white p-4 rounded border border-gray-200 flex items-center gap-3">
-                  <RotateCcw className="w-8 h-8 text-blue-600 shrink-0" />
-                  <div>
-                    <h4 className="font-bold text-gray-900">30-Day Hassle-Free Returns</h4>
-                    <p className="text-gray-500">Official PDF invoices for every commercial order</p>
-                  </div>
-                </div>
-
-                <div className="bg-white p-4 rounded border border-gray-200 flex items-center gap-3">
-                  <Headphones className="w-8 h-8 text-purple-600 shrink-0" />
-                  <div>
-                    <h4 className="font-bold text-gray-900">24/7 Security Escalation</h4>
-                    <p className="text-gray-500">Direct engineering consultation and RMA claims</p>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         )}
 
-        {/* VIEW 2: CATALOG / SEARCH RESULTS */}
+        {/* VIEW 2: PRODUCT DETAIL FULL PAGE (NO MODAL) */}
+        {currentView === 'product-detail' && selectedProduct && (
+          <ProductDetailPage
+            product={selectedProduct}
+            currency={currency}
+            exchangeRate={exchangeRate}
+            onAddToCart={handleAddToCart}
+            onBuyNow={handleBuyNow}
+            onSelectCategory={(cat) => {
+              setSelectedCategory(cat);
+              setSelectedSubCategory('');
+              navigateTo('catalog');
+            }}
+            onSelectRelatedProduct={handleSelectProduct}
+            onBack={() => navigateTo('catalog')}
+          />
+        )}
+
+        {/* VIEW 3: CART FULL PAGE (NO MODAL) */}
+        {currentView === 'cart' && (
+          <CartPage
+            cartItems={cartItems}
+            currency={currency}
+            exchangeRate={exchangeRate}
+            onUpdateQuantity={handleUpdateQuantity}
+            onRemoveItem={handleRemoveFromCart}
+            onClearCart={handleClearCart}
+            onProceedToCheckout={() => navigateTo('checkout')}
+            onContinueShopping={() => navigateTo('catalog')}
+            onSelectProduct={handleSelectProduct}
+            onAddToCart={handleAddToCart}
+          />
+        )}
+
+        {/* VIEW 4: CHECKOUT FULL PAGE (NO MODAL) */}
+        {currentView === 'checkout' && (
+          <CheckoutPage
+            cartItems={cartItems}
+            currency={currency}
+            exchangeRate={exchangeRate}
+            user={user}
+            onOrderSuccess={(order) => {
+              handleClearCart();
+            }}
+            onReturnToStore={() => navigateTo('home')}
+            onViewOrders={() => navigateTo('orders')}
+          />
+        )}
+
+        {/* VIEW 5: CATALOG / SEARCH RESULTS */}
         {currentView === 'catalog' && (
           <ProductList
             products={catalogProducts}
@@ -536,7 +647,7 @@ export default function App() {
             selectedCategory={selectedCategory}
             selectedSubCategory={selectedSubCategory}
             searchQuery={searchQuery}
-            onSelectProduct={setSelectedProduct}
+            onSelectProduct={handleSelectProduct}
             onAddToCart={handleAddToCart}
             onSelectCategory={(cat) => {
               setSelectedCategory(cat);
@@ -559,7 +670,7 @@ export default function App() {
           />
         )}
 
-        {/* VIEW 3: ORDERS & PDF INVOICE DOWNLOADS */}
+        {/* VIEW 6: ORDERS & PDF INVOICE DOWNLOADS */}
         {currentView === 'orders' && (
           <OrdersView
             user={user}
@@ -571,7 +682,7 @@ export default function App() {
                 const res = await fetch(`/api/products/${id}`);
                 if (res.ok) {
                   const prod = await res.json();
-                  setSelectedProduct(prod);
+                  handleSelectProduct(prod);
                 }
               } catch (err) {
                 console.error('Failed to load product:', err);
@@ -580,8 +691,7 @@ export default function App() {
           />
         )}
 
-        {/* VIEW 4: ADMIN LOGIN */}
-        {/* User requirement: "The admin login will be at the "/admin" of the URL then after imputing the correct credentials, it will navigate to the "/admin/dashboard" of the URL" */}
+        {/* VIEW 7: ADMIN LOGIN */}
         {currentView === 'admin' && (
           <AdminLogin
             onLoginSuccess={(token) => {
@@ -592,8 +702,7 @@ export default function App() {
           />
         )}
 
-        {/* VIEW 5: ADMIN DASHBOARD */}
-        {/* User requirement: "The total number of products will not be displayed to the public, but will be displayed at the admin dashboard." */}
+        {/* VIEW 8: ADMIN DASHBOARD */}
         {currentView === 'admin-dashboard' && (
           <AdminDashboard
             adminToken={adminToken || ''}
@@ -607,51 +716,7 @@ export default function App() {
         )}
       </main>
 
-      {/* Product Detail Modal */}
-      {selectedProduct && (
-        <ProductDetailModal
-          product={selectedProduct}
-          currency={currency}
-          exchangeRate={exchangeRate}
-          onClose={() => setSelectedProduct(null)}
-          onAddToCart={handleAddToCart}
-          onBuyNow={handleBuyNow}
-          onSelectCategory={(cat) => {
-            setSelectedCategory(cat);
-            setSelectedSubCategory('');
-            navigateTo('catalog');
-          }}
-        />
-      )}
-
-      {/* Cart Slide-Over Modal */}
-      <CartModal
-        isOpen={isCartOpen}
-        onClose={() => setIsCartOpen(false)}
-        cartItems={cartItems}
-        currency={currency}
-        exchangeRate={exchangeRate}
-        onUpdateQuantity={handleUpdateQuantity}
-        onRemoveItem={handleRemoveFromCart}
-        onClearCart={handleClearCart}
-        onProceedToCheckout={() => setIsCheckoutOpen(true)}
-      />
-
-      {/* Checkout Modal (Paystack Live Gateway) */}
-      <CheckoutModal
-        isOpen={isCheckoutOpen}
-        onClose={() => setIsCheckoutOpen(false)}
-        cartItems={cartItems}
-        currency={currency}
-        exchangeRate={exchangeRate}
-        user={user}
-        deliveryLocation={deliveryLocation}
-        onOrderSuccess={(order) => {
-          handleClearCart();
-        }}
-      />
-
-      {/* Categories Slide-Over Drawer (Amazon "All" Menu) */}
+      {/* Categories Slide-Over Drawer (All Products Menu) */}
       <CategoryDrawer
         isOpen={isCategoryDrawerOpen}
         onClose={() => setIsCategoryDrawerOpen(false)}
@@ -671,13 +736,13 @@ export default function App() {
         onClose={() => setIsAuthModalOpen(false)}
         onLoginSuccess={(authUser, token) => {
           setUser(authUser);
-          localStorage.setItem('secstore_user', JSON.stringify(authUser));
-          localStorage.setItem('secstore_token', token);
+          localStorage.setItem('spinel_user', JSON.stringify(authUser));
+          localStorage.setItem('spinel_token', token);
         }}
         onNavigateAdmin={() => navigateTo('admin')}
       />
 
-      {/* Amazon Multi-Column Footer */}
+      {/* Spinel Distribution Multi-Column Footer */}
       {currentView !== 'admin-dashboard' && (
         <Footer
           currency={currency}

@@ -18,7 +18,7 @@ export interface Product {
   specifications: Record<string, string>;
   imageUrl: string;
   galleryImages?: string[];
-  badge?: 'Best Seller' | "Amazon's Choice" | 'Prime Deal' | 'Enterprise Certified' | 'New';
+  badge?: 'Best Seller' | "Spinel's Choice" | 'Prime Deal' | 'Enterprise Certified' | 'New';
   isPrimeEligible?: boolean;
   freeDelivery?: boolean;
   warrantyYears?: number;

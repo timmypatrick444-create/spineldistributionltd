@@ -672,7 +672,7 @@ async function start() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Amazon SecStore Server running at http://0.0.0.0:${PORT}`);
+    console.log(`🚀 Spinel Distribution Server running at http://0.0.0.0:${PORT}`);
   });
 }
 

@@ -292,9 +292,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {/* Top Admin Bar */}
       <header className="bg-[#131921] text-white px-6 py-3 flex items-center justify-between border-b border-gray-800 shadow-md">
         <div className="flex items-center gap-3">
-          <div className="flex items-baseline cursor-pointer" onClick={onNavigateHome}>
-            <span className="text-xl font-black tracking-tighter text-white font-sans">amazon</span>
-            <span className="text-xs font-bold text-[#febd69] ml-0.5">.secstore</span>
+          <div
+            className="flex items-center cursor-pointer bg-white rounded p-1"
+            onClick={onNavigateHome}
+            title="Spinel Distribution Ltd"
+          >
+            <img
+              src="https://res.cloudinary.com/bmv4hvtk/image/upload/v1788619290/Spinel_Distribution.jpg"
+              alt="Spinel Distribution Ltd"
+              className="h-7 w-auto object-contain"
+              referrerPolicy="no-referrer"
+            />
           </div>
           <span className="bg-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded text-[11px] border border-amber-500/40">
             ADMINISTRATIVE CONSOLE

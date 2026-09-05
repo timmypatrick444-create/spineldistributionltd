@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   ChevronRight,
@@ -63,6 +63,18 @@ export const CategoryDrawer: React.FC<CategoryDrawerProps> = ({
 }) => {
   const [activeCategory, setActiveCategory] = useState<Category | null>(null);
 
+  // Disable background scrolling when drawer is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (
@@ -74,33 +86,30 @@ export const CategoryDrawer: React.FC<CategoryDrawerProps> = ({
       />
 
       <div className="fixed inset-y-0 left-0 max-w-full flex">
-        <div className="relative w-screen max-w-sm sm:max-w-md bg-white shadow-2xl flex flex-col">
-          {/* Drawer Close Button (Outside or Top Corner) */}
+        <div className="relative w-screen max-w-sm sm:max-w-md bg-white shadow-2xl flex flex-col h-full">
+          {/* Drawer Close Button */}
           <button
             onClick={onClose}
-            className="absolute top-3 -right-12 text-white hover:text-amber-300 p-1 hidden sm:block"
+            className="absolute top-3 -right-12 text-white hover:text-amber-300 p-1 hidden sm:block focus:outline-none"
             title="Close menu"
           >
             <X className="w-8 h-8" />
           </button>
 
-          {/* Drawer Header with user profile - Amazon style */}
-          <div className="bg-[#232f3e] text-white p-4 flex items-center justify-between">
+          {/* Drawer Header with 1-line "Hello, Sign in" */}
+          <div className="bg-[#232f3e] text-white p-4 flex items-center justify-between shrink-0">
             <div
               className="flex items-center gap-3 cursor-pointer"
               onClick={() => {
                 if (!user) onOpenAuth();
               }}
             >
-              <div className="w-9 h-9 rounded-full bg-gray-600 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-full bg-gray-600 flex items-center justify-center shrink-0">
                 <UserIcon className="w-5 h-5 text-white" />
               </div>
-              <div>
-                <p className="text-xs text-gray-300">Hello,</p>
-                <p className="text-sm font-bold text-white">
-                  {user ? user.name : 'Sign in to Enterprise Account'}
-                </p>
-              </div>
+              <p className="text-sm font-bold text-white">
+                {user ? `Hello, ${user.name}` : 'Hello, Sign in'}
+              </p>
             </div>
 
             <button onClick={onClose} className="text-gray-300 hover:text-white sm:hidden">
@@ -108,8 +117,8 @@ export const CategoryDrawer: React.FC<CategoryDrawerProps> = ({
             </button>
           </div>
 
-          {/* Content Area */}
-          <div className="flex-1 overflow-y-auto">
+          {/* Content Area - scrolls independently */}
+          <div className="flex-1 overflow-y-auto overscroll-contain">
             {activeCategory ? (
               // Subcategory View
               <div className="py-2">
@@ -157,7 +166,7 @@ export const CategoryDrawer: React.FC<CategoryDrawerProps> = ({
               // Main Category List View
               <div className="py-3">
                 <div className="px-6 py-2 text-xs font-bold uppercase tracking-wider text-gray-800">
-                  Enterprise Security Categories
+                  All Product Departments
                 </div>
 
                 <div className="divide-y divide-gray-100">
@@ -179,17 +188,7 @@ export const CategoryDrawer: React.FC<CategoryDrawerProps> = ({
                 {/* Additional Quick Navigation */}
                 <div className="mt-4 pt-4 border-t border-gray-200">
                   <div className="px-6 py-2 text-xs font-bold uppercase tracking-wider text-gray-800">
-                    Programs & Features
-                  </div>
-                  <div
-                    onClick={() => {
-                      onNavigateAdmin();
-                      onClose();
-                    }}
-                    className="px-6 py-2.5 text-xs text-amber-700 font-semibold hover:bg-amber-50 cursor-pointer flex items-center justify-between"
-                  >
-                    <span>Admin Technical Dashboard</span>
-                    <ShieldCheck className="w-4 h-4 text-amber-600" />
+                    Programs & Solutions
                   </div>
                   <div
                     onClick={() => {

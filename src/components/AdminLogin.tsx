@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { Shield, Key, Mail, Lock, AlertCircle, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Shield, Key, Mail, Lock, AlertCircle, ArrowRight } from 'lucide-react';
 
 interface AdminLoginProps {
   onLoginSuccess: (adminToken: string) => void;
   onNavigateHome: () => void;
 }
+
+const COMPANY_LOGO_URL = 'https://res.cloudinary.com/bmv4hvtk/image/upload/v1788619290/Spinel_Distribution.jpg';
 
 export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onNavigateHome }) => {
   const [technicalEmail, setTechnicalEmail] = useState('');
@@ -40,7 +42,6 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onNaviga
   };
 
   const handleQuickFillDemo = () => {
-    // Fills default environment credentials for rapid testing
     setTechnicalEmail('admin@enterprise.sec');
     setAccessKey('SEC_ADMIN_KEY_8892');
   };
@@ -48,23 +49,30 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onNaviga
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-4 py-12 bg-gray-50">
       <div className="max-w-md w-full bg-white border border-gray-300 rounded-lg shadow-xl p-8">
-        {/* Amazon Brand Logo Header */}
+        {/* Spinel Distribution Logo Header */}
         <div className="text-center mb-6">
           <div
             onClick={onNavigateHome}
-            className="inline-flex items-center gap-1 cursor-pointer mb-2"
+            className="inline-flex items-center justify-center cursor-pointer mb-3"
+            title="Spinel Distribution Ltd"
           >
-            <span className="text-2xl font-black tracking-tighter text-[#131921] font-sans">amazon</span>
-            <span className="text-sm font-bold text-[#febd69]">.secstore</span>
+            <img
+              src={COMPANY_LOGO_URL}
+              alt="Spinel Distribution Ltd"
+              className="h-12 w-auto object-contain"
+              referrerPolicy="no-referrer"
+            />
           </div>
-          <div className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-amber-800 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
-            <Shield className="w-3.5 h-3.5 text-amber-700" />
-            <span>Technical Admin Access</span>
+          <div>
+            <div className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-amber-800 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
+              <Shield className="w-3.5 h-3.5 text-amber-700" />
+              <span>Technical Admin Portal</span>
+            </div>
           </div>
         </div>
 
-        <h2 className="text-xl font-bold text-gray-900 mb-1">Administrator Sign-In</h2>
-        <p className="text-xs text-gray-500 mb-6">
+        <h2 className="text-xl font-bold text-gray-900 mb-1 text-center">Administrator Sign-In</h2>
+        <p className="text-xs text-gray-500 mb-6 text-center">
           Restricted to authorized personnel via Technical Email ID and Access Key.
         </p>
 
@@ -125,7 +133,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onNaviga
               <span>Authenticating Credentials...</span>
             ) : (
               <>
-                <span>Sign-In to Dashboard</span>
+                <span>Sign-In to Admin Dashboard</span>
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
@@ -158,7 +166,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onNaviga
               onClick={onNavigateHome}
               className="text-xs text-gray-500 hover:text-gray-800 hover:underline"
             >
-              ← Return to Public Storefront
+              ← Return to Storefront
             </button>
           </div>
         </div>

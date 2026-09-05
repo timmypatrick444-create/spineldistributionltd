@@ -1,6 +1,8 @@
 {
-  "name": "Amazon SecStore - International E-Commerce",
-  "description": "Enterprise international e-commerce platform styled like Amazon for physical security, surveillance, telecom, access control, and energy systems with Supabase storage, Paystack checkout, admin dashboard, and bulk Excel upload.",
+  "name": "Spinel Distribution Ltd",
+  "description": "Spinel Distribution supplies security cameras, CCTV, access control, networking, intercom, surveillance, power and communication solutions worldwide.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
