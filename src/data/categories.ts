@@ -24,6 +24,8 @@ export const PRODUCT_CATEGORIES: Category[] = [
       'Network Cameras',
       'Explosion-Proof Cameras',
       'Specialty Cameras',
+      'Body Worn Cameras',
+      'Accessories',
       'Camera Bundles'
     ],
     bannerImage: 'https://images.unsplash.com/photo-1557597774-9d273605dfa9?auto=format&fit=crop&w=1200&q=80',

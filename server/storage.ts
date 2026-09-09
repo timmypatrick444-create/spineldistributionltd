@@ -184,7 +184,7 @@ export interface ProductQueryOptions {
 
 export function getPublicProducts(options: ProductQueryOptions) {
   const page = Math.max(1, Number(options.page) || 1);
-  const limit = Math.min(60, Math.max(1, Number(options.limit) || 20));
+  const limit = Math.min(2000, Math.max(1, Number(options.limit) || 20));
 
   let filtered = [...productsStore];
 
@@ -256,7 +256,7 @@ export function getProductById(id: string): Product | undefined {
 // Admin only: Gets full catalog with exact totals
 export function getAdminProducts(options: ProductQueryOptions) {
   const page = Math.max(1, Number(options.page) || 1);
-  const limit = Math.min(100, Math.max(1, Number(options.limit) || 20));
+  const limit = Math.min(5000, Math.max(1, Number(options.limit) || 20));
 
   let filtered = [...productsStore];
 
@@ -352,7 +352,21 @@ export function deleteProduct(id: string): boolean {
 }
 
 // Bulk Upload Process
-export function processBulkUpload(rows: BulkUploadRow[]): { uploaded: number; failed: number; errors: string[]; totalProducts: number } {
+export function processBulkUpload(
+  rows: BulkUploadRow[],
+  options?: {
+    defaultCategory?: string;
+    replaceCategory?: string;
+    action?: 'append' | 'replace_category' | 'replace_all';
+  }
+): {
+  totalRows: number;
+  uploaded: number;
+  failed: number;
+  errors: string[];
+  totalProducts: number;
+  replacedCategory?: string;
+} {
   let uploaded = 0;
   let failed = 0;
   const errors: string[] = [];
@@ -363,25 +377,22 @@ export function processBulkUpload(rows: BulkUploadRow[]): { uploaded: number; fa
   });
 
   const now = new Date().toISOString();
+  const newProductsBatch: Product[] = [];
+  const existingSkuSet = new Set(productsStore.map(p => p.sku.toLowerCase().trim()));
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const rowNum = i + 2; // account for header row
 
-    if (!row.name || !row.name.trim()) {
+    if (!row.name || !String(row.name).trim()) {
       errors.push(`Row ${rowNum}: Product Name is missing.`);
       failed++;
       continue;
     }
 
-    if (!row.category || !row.category.trim()) {
-      errors.push(`Row ${rowNum}: Category is missing.`);
-      failed++;
-      continue;
-    }
-
-    // Match or fallback category
-    const matchedCategory = categoryMap.get(row.category.toLowerCase().trim()) || row.category.trim();
+    // Determine category: row category or fallback to defaultCategory or 'Video Surveillance & Cameras'
+    const rawCategory = (row.category && String(row.category).trim()) || options?.defaultCategory?.trim() || 'Video Surveillance & Cameras';
+    const matchedCategory = categoryMap.get(rawCategory.toLowerCase().trim()) || rawCategory;
 
     // Check whether product has a fixed price or is quote-based
     const hasPriceRaw = String(row.hasPrice ?? '').trim().toLowerCase();
@@ -404,36 +415,38 @@ export function processBulkUpload(rows: BulkUploadRow[]): { uploaded: number; fa
     if (hasPrice) {
       const parsedPrice = Number(row.priceUSD);
       if (isNaN(parsedPrice) || parsedPrice <= 0) {
-        // If price is invalid but not marked as quote, treat as quote or flag error
-        if (rawPriceStr === '') {
-          hasPrice = false;
-          pricingType = 'quote';
-          priceUSD = null;
-        } else {
-          errors.push(`Row ${rowNum}: Price (${row.priceUSD}) is invalid.`);
-          failed++;
-          continue;
-        }
+        // If price is missing or unparseable, safely treat as quote product instead of failing
+        hasPrice = false;
+        pricingType = 'quote';
+        priceUSD = null;
       } else {
         priceUSD = parsedPrice;
       }
     }
 
     const stock = Number(row.stockQuantity);
-    const stockQuantity = isNaN(stock) || stock < 0 ? 10 : stock;
+    const stockQuantity = isNaN(stock) || stock < 0 ? 15 : stock;
 
-    const sku = row.sku && row.sku.trim()
-      ? row.sku.trim()
+    let baseSku = row.sku && String(row.sku).trim()
+      ? String(row.sku).trim()
       : 'SKU-' + Math.floor(100000 + Math.random() * 900000);
+    
+    let finalSku = baseSku;
+    let skuSuffix = 1;
+    while (existingSkuSet.has(finalSku.toLowerCase())) {
+      skuSuffix++;
+      finalSku = `${baseSku}-${skuSuffix}`;
+    }
+    existingSkuSet.add(finalSku.toLowerCase());
 
     const featureList = row.features
-      ? row.features.split(';').map(f => f.trim()).filter(Boolean)
+      ? String(row.features).split(';').map(f => f.trim()).filter(Boolean)
       : ['Industrial durability', 'Certified security specification', 'High-performance chipset'];
 
     const newProd: Product = {
       id: 'prod-bulk-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7) + '-' + i,
-      name: row.name.trim(),
-      sku,
+      name: String(row.name).trim(),
+      sku: finalSku,
       category: matchedCategory,
       subCategory: row.subCategory?.trim() || 'General Equipment',
       hasPrice,
@@ -448,8 +461,10 @@ export function processBulkUpload(rows: BulkUploadRow[]): { uploaded: number; fa
       description: row.description?.trim() || `${row.name} - high performance industrial enterprise grade equipment.`,
       features: featureList,
       specifications: {
+        'Brand': row.brand?.trim() || 'Industrial Enterprise',
         'Category': matchedCategory,
-        'SubCategory': row.subCategory?.trim() || 'General',
+        'Sub-Category': row.subCategory?.trim() || 'General',
+        'Model / SKU': finalSku,
         'Compliance': 'CE, FCC, RoHS, ISO9001',
         'Warranty': '3 Years Commercial'
       },
@@ -461,19 +476,32 @@ export function processBulkUpload(rows: BulkUploadRow[]): { uploaded: number; fa
       createdAt: now
     };
 
-    productsStore.unshift(newProd);
+    newProductsBatch.push(newProd);
     uploaded++;
   }
 
-  if (uploaded > 0) {
+  // Handle category replacement if requested
+  const targetReplaceCat = options?.replaceCategory || (options?.action === 'replace_category' ? options?.defaultCategory : undefined);
+  if (targetReplaceCat && targetReplaceCat.trim()) {
+    const targetCatLower = targetReplaceCat.toLowerCase().trim();
+    productsStore = productsStore.filter(p => p.category.toLowerCase().trim() !== targetCatLower);
+  } else if (options?.action === 'replace_all') {
+    productsStore = [];
+  }
+
+  // Fast batch prepend
+  if (newProductsBatch.length > 0) {
+    productsStore = [...newProductsBatch, ...productsStore];
     saveProductsToFile();
   }
 
   return {
+    totalRows: rows.length,
     uploaded,
     failed,
-    errors: errors.slice(0, 20), // return first 20 errors to avoid payload bloat
-    totalProducts: productsStore.length
+    errors: errors.slice(0, 50),
+    totalProducts: productsStore.length,
+    replacedCategory: targetReplaceCat
   };
 }
 
