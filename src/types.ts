@@ -135,10 +135,8 @@ export interface QuoteRequest {
 export interface BulkUploadResponse {
   success: boolean;
   message: string;
-  totalRowsInFile?: number;
   uploadedCount: number;
   failedCount: number;
   errors?: string[];
   totalCatalogSize: number;
-  replacedCategory?: string;
 }

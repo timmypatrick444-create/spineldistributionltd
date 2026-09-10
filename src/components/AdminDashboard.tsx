@@ -25,8 +25,7 @@ import {
   CreditCard,
   Building,
   Check,
-  X,
-  FileText
+  X
 } from 'lucide-react';
 import { AdminStats, Product, Order, BulkUploadResponse } from '../types.ts';
 import { PRODUCT_CATEGORIES } from '../data/categories.ts';
@@ -67,14 +66,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isSavingProduct, setIsSavingProduct] = useState(false);
 
   // Bulk Upload State
-  const [uploadMode, setUploadMode] = useState<'file' | 'paste'>('file');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [detectedFileRows, setDetectedFileRows] = useState<number | null>(null);
-  const [pastedCsvText, setPastedCsvText] = useState<string>('');
-  const [detectedPasteRows, setDetectedPasteRows] = useState<number | null>(null);
-  const [targetCategory, setTargetCategory] = useState<string>('Video Surveillance & Cameras');
-  const [categoryMode, setCategoryMode] = useState<'auto' | 'force'>('auto');
-  const [uploadAction, setUploadAction] = useState<'append' | 'replace_category'>('append');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<BulkUploadResponse | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -171,124 +163,55 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setUploadFile(file);
       setUploadResult(null);
       setUploadError(null);
-
-      // If text or CSV, count rows immediately in the browser to show the user live verification
-      if (
-        file.name.endsWith('.csv') ||
-        file.name.endsWith('.tsv') ||
-        file.name.endsWith('.txt') ||
-        file.type.includes('csv') ||
-        file.type.includes('text')
-      ) {
-        const textReader = new FileReader();
-        textReader.onload = (event) => {
-          const content = event.target?.result as string;
-          if (content) {
-            const lines = content.split(/\r\n|\r|\n/).filter(line => line.trim().length > 0);
-            const count = Math.max(0, lines.length - 1); // minus header row
-            setDetectedFileRows(count);
-          }
-        };
-        textReader.readAsText(file);
-      } else {
-        setDetectedFileRows(null);
-      }
     }
-  };
-
-  const handlePasteChange = (val: string) => {
-    setPastedCsvText(val);
-    setUploadResult(null);
-    setUploadError(null);
-    if (!val.trim()) {
-      setDetectedPasteRows(null);
-      return;
-    }
-    const lines = val.split(/\r\n|\r|\n/).filter(line => line.trim().length > 0);
-    const count = Math.max(0, lines.length - 1);
-    setDetectedPasteRows(count);
   };
 
   const handleExecuteBulkUpload = async () => {
-    if (uploadMode === 'file' && !uploadFile) return;
-    if (uploadMode === 'paste' && !pastedCsvText.trim()) return;
-
+    if (!uploadFile) return;
     setIsUploading(true);
     setUploadError(null);
     setUploadResult(null);
 
-    const defaultCat = categoryMode === 'force' ? targetCategory : (targetCategory || 'Video Surveillance & Cameras');
-    const replaceCat = uploadAction === 'replace_category' ? targetCategory : undefined;
-
     try {
-      if (uploadMode === 'paste') {
-        const res = await fetch('/api/admin/products/bulk-upload', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${adminToken}`
-          },
-          body: JSON.stringify({
-            csvText: pastedCsvText,
-            defaultCategory: defaultCat,
-            replaceCategory: replaceCat,
-            action: uploadAction
-          })
-        });
+      // Read file as Base64 string
+      const reader = new FileReader();
+      reader.readAsDataURL(uploadFile);
 
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.error || 'Bulk upload failed');
-        }
+      reader.onload = async () => {
+        try {
+          const base64Content = reader.result as string;
+          const res = await fetch('/api/admin/products/bulk-upload', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${adminToken}`
+            },
+            body: JSON.stringify({
+              fileData: base64Content,
+              fileName: uploadFile.name
+            })
+          });
 
-        setUploadResult(data);
-        fetchStats();
-        if (activeTab === 'products') fetchProducts(1);
-        setIsUploading(false);
-      } else if (uploadFile) {
-        // Read file as Base64 string
-        const reader = new FileReader();
-        reader.readAsDataURL(uploadFile);
-
-        reader.onload = async () => {
-          try {
-            const base64Content = reader.result as string;
-            const res = await fetch('/api/admin/products/bulk-upload', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${adminToken}`
-              },
-              body: JSON.stringify({
-                fileData: base64Content,
-                fileName: uploadFile.name,
-                defaultCategory: defaultCat,
-                replaceCategory: replaceCat,
-                action: uploadAction
-              })
-            });
-
-            const data = await res.json();
-            if (!res.ok) {
-              throw new Error(data.error || 'Bulk upload failed');
-            }
-
-            setUploadResult(data);
-            // Refresh stats and product catalog
-            fetchStats();
-            if (activeTab === 'products') fetchProducts(1);
-          } catch (err: any) {
-            setUploadError(err.message || 'Failed to upload spreadsheet');
-          } finally {
-            setIsUploading(false);
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || 'Bulk upload failed');
           }
-        };
 
-        reader.onerror = () => {
+          setUploadResult(data);
+          // Refresh stats and product catalog
+          fetchStats();
+          if (activeTab === 'products') fetchProducts(1);
+        } catch (err: any) {
+          setUploadError(err.message || 'Failed to upload spreadsheet');
+        } finally {
           setIsUploading(false);
-          setUploadError('Failed to read file from disk');
-        };
-      }
+        }
+      };
+
+      reader.onerror = () => {
+        setIsUploading(false);
+        setUploadError('Failed to read file from disk');
+      };
     } catch (err: any) {
       setIsUploading(false);
       setUploadError(err.message || 'An unexpected error occurred during upload');
@@ -569,283 +492,107 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           )}
 
-          {/* 2. BULK PRODUCT UPLOAD TAB (Zero Truncation Guarantee) */}
+          {/* 2. BULK EXCEL UPLOAD TAB */}
+          {/* User requirement: "I want to be able to easily upload bulk products to each categories of products using an excel file that contains all products details. I want to be able perform the bulk product upload operation of thousands of products" */}
           {activeTab === 'bulk-upload' && (
             <div className="space-y-6 max-w-4xl">
               <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-xl font-bold text-gray-900">Bulk Product Upload Operation</h2>
-                  <span className="bg-emerald-100 text-emerald-800 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-emerald-300">
-                    Unlimited Capacity • Zero Truncation
-                  </span>
-                </div>
+                <h2 className="text-xl font-bold text-gray-900">Bulk Product Upload Operation</h2>
                 <p className="text-xs text-gray-500 mt-1">
-                  Upload or paste thousands of products in one operation. Every single row is parsed and batch-inserted without line caps or artificial truncation.
+                  Upload an Excel spreadsheet (.xlsx, .xls, .csv) containing product details to batch-insert thousands of products into the catalog.
                 </p>
               </div>
 
-              {/* Upload Mode Selector */}
-              <div className="flex border-b border-gray-200">
-                <button
-                  type="button"
-                  onClick={() => setUploadMode('file')}
-                  className={`py-2 px-4 text-xs font-bold border-b-2 transition-colors flex items-center gap-2 cursor-pointer ${
-                    uploadMode === 'file'
-                      ? 'border-[#f08804] text-[#0f1111]'
-                      : 'border-transparent text-gray-500 hover:text-gray-800'
-                  }`}
-                >
-                  <UploadCloud className="w-4 h-4" />
-                  <span>Upload Spreadsheet File (.csv, .xlsx, .xls)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setUploadMode('paste')}
-                  className={`py-2 px-4 text-xs font-bold border-b-2 transition-colors flex items-center gap-2 cursor-pointer ${
-                    uploadMode === 'paste'
-                      ? 'border-[#f08804] text-[#0f1111]'
-                      : 'border-transparent text-gray-500 hover:text-gray-800'
-                  }`}
-                >
-                  <FileText className="w-4 h-4" />
-                  <span>Paste Raw CSV / Text Data</span>
-                </button>
-              </div>
-
-              {/* Category & Action Options Panel */}
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-4">
-                <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
-                  <Layers className="w-3.5 h-3.5 text-gray-600" />
-                  <span>Category & Catalog Action Settings</span>
-                </h4>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">
-                      Target Category
-                    </label>
-                    <select
-                      value={targetCategory}
-                      onChange={(e) => setTargetCategory(e.target.value)}
-                      className="w-full text-xs border border-gray-300 rounded p-2 bg-white focus:ring-1 focus:ring-[#f08804]"
-                    >
-                      {PRODUCT_CATEGORIES.map(c => (
-                        <option key={c.id} value={c.name}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">
-                      Category Assignment
-                    </label>
-                    <select
-                      value={categoryMode}
-                      onChange={(e) => setCategoryMode(e.target.value as 'auto' | 'force')}
-                      className="w-full text-xs border border-gray-300 rounded p-2 bg-white focus:ring-1 focus:ring-[#f08804]"
-                    >
-                      <option value="auto">Auto-detect from CSV (fallback to target)</option>
-                      <option value="force">Force all rows to target category</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">
-                      Upload Action
-                    </label>
-                    <select
-                      value={uploadAction}
-                      onChange={(e) => setUploadAction(e.target.value as 'append' | 'replace_category')}
-                      className="w-full text-xs border border-gray-300 rounded p-2 bg-white focus:ring-1 focus:ring-[#f08804]"
-                    >
-                      <option value="append">Append to existing catalog</option>
-                      <option value="replace_category">
-                        Replace all existing items in "{targetCategory}"
-                      </option>
-                    </select>
-                  </div>
+              {/* Download Template Banner */}
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h4 className="font-bold text-sm text-emerald-900 flex items-center gap-2">
+                    <Download className="w-4 h-4 text-emerald-700" /> Official Excel Upload Template with Quote Support
+                  </h4>
+                  <p className="text-xs text-emerald-800 mt-1">
+                    Download formatted template supporting both <strong>Fixed-Price products</strong> (checkout flow) and <strong>Unpriced/Quote products</strong> (Request Quote flow).
+                  </p>
                 </div>
 
-                {uploadAction === 'replace_category' && (
-                  <div className="p-2.5 bg-amber-50 border border-amber-200 rounded text-xs text-amber-900 flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                    <span>
-                      <strong>Replacement Mode Active:</strong> All existing products in <strong>"{targetCategory}"</strong> will be removed and cleanly replaced with the new uploaded products.
+                <a
+                  href="/api/admin/products/template"
+                  download="Spinel_Bulk_Products_Template.xlsx"
+                  className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-2 px-4 rounded text-xs flex items-center gap-2 shrink-0 transition-colors shadow-xs"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download .XLSX Template</span>
+                </a>
+              </div>
+
+              {/* Upload Drop Zone */}
+              <div className="bg-white p-6 rounded-lg border-2 border-dashed border-gray-300 hover:border-[#f08804] transition-colors text-center">
+                <input
+                  type="file"
+                  id="bulk-file-input"
+                  accept=".xlsx, .xls, .csv"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+
+                <label htmlFor="bulk-file-input" className="cursor-pointer block">
+                  <UploadCloud className="w-12 h-12 text-[#f08804] mx-auto mb-2" />
+                  <span className="text-sm font-bold text-gray-900 block">
+                    {uploadFile ? uploadFile.name : 'Click to select Excel file (.xlsx / .csv) or drag & drop'}
+                  </span>
+                  <span className="text-xs text-gray-500 mt-1 block">
+                    Supports large batches with thousands of rows across all 16 categories
+                  </span>
+                </label>
+
+                {uploadFile && (
+                  <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-center gap-4">
+                    <span className="text-xs text-gray-600 font-semibold">
+                      Selected: {uploadFile.name} ({(uploadFile.size / 1024).toFixed(1)} KB)
                     </span>
+
+                    <button
+                      type="button"
+                      onClick={handleExecuteBulkUpload}
+                      disabled={isUploading}
+                      className="bg-[#ffd814] hover:bg-[#f7ca00] text-[#0f1111] font-bold py-2 px-6 rounded-full text-xs shadow-xs transition-colors disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {isUploading ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Processing Rows with XLSX Engine...</span>
+                        </>
+                      ) : (
+                        <>
+                          <UploadCloud className="w-4 h-4" />
+                          <span>Start Bulk Upload</span>
+                        </>
+                      )}
+                    </button>
                   </div>
                 )}
               </div>
 
-              {/* Mode A: File Upload */}
-              {uploadMode === 'file' && (
-                <div className="space-y-4">
-                  {/* Download Template Banner */}
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                      <h4 className="font-bold text-sm text-emerald-900 flex items-center gap-2">
-                        <Download className="w-4 h-4 text-emerald-700" /> Official Excel & CSV Upload Template
-                      </h4>
-                      <p className="text-xs text-emerald-800 mt-1">
-                        Download formatted template supporting both <strong>Fixed-Price products</strong> and <strong>Unpriced/Quote products</strong>.
-                      </p>
-                    </div>
-
-                    <a
-                      href="/api/admin/products/template"
-                      download="Spinel_Bulk_Products_Template.xlsx"
-                      className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-2 px-4 rounded text-xs flex items-center gap-2 shrink-0 transition-colors shadow-xs"
-                    >
-                      <Download className="w-4 h-4" />
-                      <span>Download .XLSX Template</span>
-                    </a>
-                  </div>
-
-                  {/* Drop Zone */}
-                  <div className="bg-white p-6 rounded-lg border-2 border-dashed border-gray-300 hover:border-[#f08804] transition-colors text-center">
-                    <input
-                      type="file"
-                      id="bulk-file-input"
-                      accept=".xlsx, .xls, .csv, .tsv, .txt"
-                      onChange={handleFileChange}
-                      className="hidden"
-                    />
-
-                    <label htmlFor="bulk-file-input" className="cursor-pointer block">
-                      <UploadCloud className="w-12 h-12 text-[#f08804] mx-auto mb-2" />
-                      <span className="text-sm font-bold text-gray-900 block">
-                        {uploadFile ? uploadFile.name : 'Click to select CSV or Excel file (.csv / .xlsx) or drag & drop'}
-                      </span>
-                      <span className="text-xs text-gray-500 mt-1 block">
-                        Supports large files with thousands of rows (e.g. 1,106+ items) with zero truncation
-                      </span>
-                    </label>
-
-                    {uploadFile && (
-                      <div className="mt-4 pt-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-center gap-4">
-                        <div className="text-left">
-                          <span className="text-xs text-gray-700 font-bold block">
-                            File: {uploadFile.name} ({(uploadFile.size / 1024).toFixed(1)} KB)
-                          </span>
-                          {detectedFileRows !== null && (
-                            <span className="text-xs text-emerald-700 font-semibold block flex items-center gap-1">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              {detectedFileRows.toLocaleString()} product rows detected in file
-                            </span>
-                          )}
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={handleExecuteBulkUpload}
-                          disabled={isUploading}
-                          className="bg-[#ffd814] hover:bg-[#f7ca00] text-[#0f1111] font-bold py-2.5 px-6 rounded-full text-xs shadow-xs transition-colors disabled:opacity-50 flex items-center gap-2 cursor-pointer"
-                        >
-                          {isUploading ? (
-                            <>
-                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                              <span>Processing All Rows (No Truncation)...</span>
-                            </>
-                          ) : (
-                            <>
-                              <UploadCloud className="w-4 h-4" />
-                              <span>Upload & Import All Products Now</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Mode B: Direct Paste CSV */}
-              {uploadMode === 'paste' && (
-                <div className="space-y-4">
-                  <div className="bg-white p-5 rounded-lg border border-gray-300 shadow-xs space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-gray-800">
-                        Paste Raw CSV Data (Include Header Row)
-                      </label>
-                      {detectedPasteRows !== null && (
-                        <span className="text-xs font-bold text-emerald-700 flex items-center gap-1 bg-emerald-50 px-2.5 py-1 rounded border border-emerald-200">
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          {detectedPasteRows.toLocaleString()} product rows detected
-                        </span>
-                      )}
-                    </div>
-
-                    <textarea
-                      rows={12}
-                      value={pastedCsvText}
-                      onChange={(e) => handlePasteChange(e.target.value)}
-                      placeholder="Name,SKU,Category,SubCategory,PriceUSD,StockQuantity,Brand,Description&#10;DS-2CD2043G2-I,CAM-1001,Video Surveillance & Cameras,Bullet Cameras,185,25,Hikvision,4MP AcuSense Bullet Camera&#10;..."
-                      className="w-full font-mono text-xs p-3 border border-gray-300 rounded focus:ring-1 focus:ring-[#f08804] focus:outline-none"
-                    />
-
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-                      <span className="text-[11px] text-gray-500">
-                        Pasted data is processed in full without any message length or line number limits.
-                      </span>
-
-                      <button
-                        type="button"
-                        onClick={handleExecuteBulkUpload}
-                        disabled={isUploading || !pastedCsvText.trim()}
-                        className="bg-[#ffd814] hover:bg-[#f7ca00] text-[#0f1111] font-bold py-2.5 px-6 rounded-full text-xs shadow-xs transition-colors disabled:opacity-50 flex items-center gap-2 shrink-0 cursor-pointer"
-                      >
-                        {isUploading ? (
-                          <>
-                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            <span>Importing All Rows...</span>
-                          </>
-                        ) : (
-                          <>
-                            <UploadCloud className="w-4 h-4" />
-                            <span>
-                              Import All {detectedPasteRows ? `${detectedPasteRows} Products` : 'Pasted Products'}
-                            </span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* Success Result Box */}
               {uploadResult && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-5 text-xs text-green-900 space-y-3 shadow-xs">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-5 text-xs text-green-900 space-y-2">
                   <div className="flex items-center gap-2 font-bold text-sm text-green-800">
-                    <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" />
+                    <CheckCircle2 className="w-5 h-5 text-green-600" />
                     <span>{uploadResult.message}</span>
                   </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-green-200 font-medium">
-                    <div className="bg-white p-3 rounded border border-green-200">
-                      <span className="text-gray-500 block text-[11px]">Total Rows in File:</span>
-                      <span className="text-lg font-bold text-gray-900">{uploadResult.totalRowsInFile || uploadResult.uploadedCount}</span>
-                    </div>
-                    <div className="bg-white p-3 rounded border border-green-200">
-                      <span className="text-gray-500 block text-[11px]">Uploaded Successfully:</span>
+                  <div className="grid grid-cols-3 gap-2 pt-2 border-t border-green-200 font-medium">
+                    <div>
+                      <span className="text-gray-500 block">Uploaded Products:</span>
                       <span className="text-lg font-bold text-green-700">{uploadResult.uploadedCount}</span>
                     </div>
-                    <div className="bg-white p-3 rounded border border-green-200">
-                      <span className="text-gray-500 block text-[11px]">Failed / Skipped:</span>
+                    <div>
+                      <span className="text-gray-500 block">Failed / Skipped:</span>
                       <span className="text-lg font-bold text-amber-700">{uploadResult.failedCount}</span>
                     </div>
-                    <div className="bg-white p-3 rounded border border-green-200">
-                      <span className="text-gray-500 block text-[11px]">Total Catalog Size:</span>
-                      <span className="text-lg font-bold text-blue-700">{uploadResult.totalCatalogSize}</span>
+                    <div>
+                      <span className="text-gray-500 block">Total Catalog Size:</span>
+                      <span className="text-lg font-bold text-gray-900">{uploadResult.totalCatalogSize}</span>
                     </div>
                   </div>
-
-                  {uploadResult.replacedCategory && (
-                    <div className="text-xs text-emerald-800 bg-emerald-100/60 p-2 rounded border border-emerald-200 font-semibold">
-                      Category "{uploadResult.replacedCategory}" was refreshed and replaced with this newly uploaded batch.
-                    </div>
-                  )}
 
                   {uploadResult.errors && uploadResult.errors.length > 0 && (
                     <div className="mt-3 pt-2 border-t border-green-200">
@@ -870,22 +617,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
               {/* Expected Excel Columns Reference */}
               <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-xs text-xs space-y-3">
-                <h4 className="font-bold text-gray-900 text-sm">Supported Column Headers (Flexible Matching)</h4>
-                <p className="text-gray-500 text-[11px]">
-                  The importer automatically matches common variations and aliases across industry product sheets:
-                </p>
+                <h4 className="font-bold text-gray-900 text-sm">Supported Excel Header Columns</h4>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   <div className="p-2 bg-gray-50 rounded border">
                     <strong className="block text-gray-800">Name *</strong>
-                    <span className="text-[11px] text-gray-500">Product Name, Title, item_name</span>
+                    <span className="text-[11px] text-gray-500">Product title/name</span>
                   </div>
                   <div className="p-2 bg-gray-50 rounded border">
-                    <strong className="block text-gray-800">Category</strong>
-                    <span className="text-[11px] text-gray-500">One of 16 categories or fallback</span>
+                    <strong className="block text-gray-800">Category *</strong>
+                    <span className="text-[11px] text-gray-500">One of the 16 categories</span>
                   </div>
                   <div className="p-2 bg-gray-50 rounded border">
                     <strong className="block text-gray-800">SubCategory</strong>
-                    <span className="text-[11px] text-gray-500">Specific subcategory name</span>
+                    <span className="text-[11px] text-gray-500">Specific subcategory</span>
                   </div>
                   <div className="p-2 bg-amber-50 rounded border border-amber-200">
                     <strong className="block text-amber-900">HasPrice</strong>
@@ -897,19 +641,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </div>
                   <div className="p-2 bg-gray-50 rounded border">
                     <strong className="block text-gray-800">PriceUSD</strong>
-                    <span className="text-[11px] text-gray-500">Price ($), unit price</span>
+                    <span className="text-[11px] text-gray-500">USD price (leave blank if quote)</span>
                   </div>
                   <div className="p-2 bg-gray-50 rounded border">
                     <strong className="block text-gray-800">StockQuantity</strong>
-                    <span className="text-[11px] text-gray-500">Quantity, Stock, Qty</span>
+                    <span className="text-[11px] text-gray-500">Inventory units available</span>
                   </div>
                   <div className="p-2 bg-gray-50 rounded border">
                     <strong className="block text-gray-800">SKU</strong>
-                    <span className="text-[11px] text-gray-500">Item Number, Model Number</span>
+                    <span className="text-[11px] text-gray-500">Unique model number</span>
                   </div>
                   <div className="p-2 bg-gray-50 rounded border">
                     <strong className="block text-gray-800">Brand</strong>
-                    <span className="text-[11px] text-gray-500">Manufacturer, brand, vendor</span>
+                    <span className="text-[11px] text-gray-500">Manufacturer/brand</span>
                   </div>
                   <div className="p-2 bg-gray-50 rounded border">
                     <strong className="block text-gray-800">Features</strong>
@@ -917,11 +661,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </div>
                   <div className="p-2 bg-gray-50 rounded border">
                     <strong className="block text-gray-800">ImageUrl</strong>
-                    <span className="text-[11px] text-gray-500">Public photo URL or blank</span>
-                  </div>
-                  <div className="p-2 bg-gray-50 rounded border">
-                    <strong className="block text-gray-800">Description</strong>
-                    <span className="text-[11px] text-gray-500">Product details & specifications</span>
+                    <span className="text-[11px] text-gray-500">Public photo URL</span>
                   </div>
                 </div>
               </div>

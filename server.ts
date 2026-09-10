@@ -34,8 +34,8 @@ const app = express();
 const PORT = 3000;
 
 // High body limit to support bulk upload of thousands of products
-app.use(express.json({ limit: '150mb' }));
-app.use(express.urlencoded({ extended: true, limit: '150mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cors());
 app.use(cookieParser());
 
@@ -288,190 +288,78 @@ app.delete('/api/admin/products/:id', authenticateAdmin, (req: Request, res: Res
   res.json({ success: true, message: 'Product removed' });
 });
 
-// Helper: Robust RFC-4180 CSV parser supporting BOM, multiline quoted fields, and delimiter auto-detection
-function parseCsvContent(text: string): Record<string, any>[] {
-  let cleanText = text;
-  if (cleanText.charCodeAt(0) === 0xFEFF) {
-    cleanText = cleanText.slice(1);
-  }
-
-  // Detect delimiter from first non-empty line
-  const firstNewline = cleanText.indexOf('\n');
-  const firstLine = firstNewline !== -1 ? cleanText.slice(0, firstNewline) : cleanText;
-  let delimiter = ',';
-  const commaCount = (firstLine.match(/,/g) || []).length;
-  const semicolonCount = (firstLine.match(/;/g) || []).length;
-  const tabCount = (firstLine.match(/\t/g) || []).length;
-  if (semicolonCount > commaCount && semicolonCount > tabCount) {
-    delimiter = ';';
-  } else if (tabCount > commaCount && tabCount > semicolonCount) {
-    delimiter = '\t';
-  }
-
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let cell = '';
-  let inQuotes = false;
-  const len = cleanText.length;
-
-  for (let i = 0; i < len; i++) {
-    const char = cleanText[i];
-    const nextChar = cleanText[i + 1];
-
-    if (char === '"') {
-      if (inQuotes && nextChar === '"') {
-        cell += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (char === delimiter && !inQuotes) {
-      row.push(cell.trim());
-      cell = '';
-    } else if ((char === '\r' || char === '\n') && !inQuotes) {
-      if (char === '\r' && nextChar === '\n') {
-        i++;
-      }
-      row.push(cell.trim());
-      if (row.length > 1 || (row.length === 1 && row[0] !== '')) {
-        rows.push(row);
-      }
-      row = [];
-      cell = '';
-    } else {
-      cell += char;
-    }
-  }
-
-  if (cell !== '' || row.length > 0) {
-    row.push(cell.trim());
-    if (row.length > 1 || (row.length === 1 && row[0] !== '')) {
-      rows.push(row);
-    }
-  }
-
-  if (rows.length === 0) return [];
-
-  const headerRow = rows[0].map(h => h.replace(/^["']|["']$/g, '').trim());
-  const dataRows: Record<string, any>[] = [];
-
-  for (let r = 1; r < rows.length; r++) {
-    const rValues = rows[r];
-    if (rValues.length === 0 || (rValues.length === 1 && !rValues[0])) continue;
-    const obj: Record<string, any> = {};
-    for (let c = 0; c < headerRow.length; c++) {
-      const headerKey = headerRow[c] || `col_${c}`;
-      obj[headerKey] = rValues[c] !== undefined ? rValues[c] : '';
-    }
-    dataRows.push(obj);
-  }
-
-  return dataRows;
-}
-
-// 9. Bulk Product Upload (Excel / CSV parsing with zero truncation)
+// 9. Bulk Product Upload (Excel / CSV parsing)
+// User requirement: "I want to be able to easily upload bulk products to each categories of products using an excel file that contains all products details. I want to be able perform the bulk product upload operation of thousands of products."
 app.post('/api/admin/products/bulk-upload', authenticateAdmin, (req: Request, res: Response) => {
   try {
-    const { fileData, csvText, defaultCategory, replaceCategory, action } = req.body;
-
-    if (!fileData && !csvText) {
-      return res.status(400).json({ error: 'Missing fileData or csvText in request body' });
+    const { fileData, fileType } = req.body;
+    if (!fileData) {
+      return res.status(400).json({ error: 'Missing fileData in request body' });
     }
 
-    let rawRows: any[] = [];
+    // Decode base64 buffer
+    const base64Content = fileData.includes(',') ? fileData.split(',')[1] : fileData;
+    const buffer = Buffer.from(base64Content, 'base64');
 
-    // Mode A: Direct raw CSV/TSV text
-    if (csvText && typeof csvText === 'string') {
-      rawRows = parseCsvContent(csvText);
-    } else if (fileData) {
-      // Mode B: File buffer (Base64 data URL or pure Base64)
-      const base64Content = fileData.includes(',') ? fileData.split(',')[1] : fileData;
-      const buffer = Buffer.from(base64Content, 'base64');
-
-      // Check if file is a ZIP-based Excel (.xlsx) or OLE-based (.xls)
-      const isZip = buffer.length > 4 && buffer[0] === 0x50 && buffer[1] === 0x4B;
-      const isOle = buffer.length > 4 && buffer[0] === 0xD0 && buffer[1] === 0xCF;
-
-      if (isZip || isOle) {
-        const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true, raw: false });
-        const sheetName = workbook.SheetNames[0];
-        if (!sheetName) {
-          return res.status(400).json({ error: 'Excel file contains no worksheets.' });
-        }
-        const sheet = workbook.Sheets[sheetName];
-        rawRows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-      } else {
-        // Plain text CSV or TSV
-        const text = buffer.toString('utf8');
-        rawRows = parseCsvContent(text);
-        if (rawRows.length === 0) {
-          // Fallback to xlsx parser if custom parser found no rows
-          try {
-            const wb = XLSX.read(buffer, { type: 'buffer' });
-            const sName = wb.SheetNames[0];
-            if (sName) {
-              rawRows = XLSX.utils.sheet_to_json(wb.Sheets[sName], { defval: '' });
-            }
-          } catch {}
-        }
-      }
+    // Read workbook with xlsx
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    if (!sheetName) {
+      return res.status(400).json({ error: 'Excel file has no worksheets.' });
     }
+
+    const sheet = workbook.Sheets[sheetName];
+    const rawRows: any[] = XLSX.utils.sheet_to_json(sheet);
 
     if (!rawRows || rawRows.length === 0) {
-      return res.status(400).json({ error: 'The uploaded file or text contains no valid product rows.' });
+      return res.status(400).json({ error: 'The uploaded spreadsheet contains no product rows.' });
     }
 
-    // Map columns flexibly (handles common header variations across industry spreadsheets)
+    // Map columns flexibly (handles common header variations like 'Product Name', 'Price ($)', etc.)
     const normalizedRows: BulkUploadRow[] = rawRows.map(row => {
       const getVal = (...keys: string[]) => {
         for (const k of keys) {
-          if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') return row[k];
+          if (row[k] !== undefined) return row[k];
           // case-insensitive check
           const found = Object.keys(row).find(rk => rk.trim().toLowerCase() === k.trim().toLowerCase());
-          if (found && row[found] !== undefined && row[found] !== null && String(row[found]).trim() !== '') return row[found];
+          if (found && row[found] !== undefined) return row[found];
         }
         return '';
       };
 
       const hasPriceVal = getVal('HasPrice', 'Has Price', 'has_price', 'PriceAvailable');
       const pricingTypeVal = getVal('PricingType', 'Pricing Type', 'pricing_type', 'Pricing Model');
-      const rawPrice = getVal('PriceUSD', 'Price ($)', 'Price', 'price', 'Unit Price', 'unit_price');
+      const rawPrice = getVal('PriceUSD', 'Price ($)', 'Price', 'price', 'Unit Price');
 
       return {
-        name: String(getVal('Name', 'Product Name', 'product_name', 'Title', 'item_name') || ''),
-        sku: String(getVal('SKU', 'sku', 'Item Number', 'Model Number', 'Model', 'Part Number') || ''),
-        category: String(getVal('Category', 'category', 'Product Category') || defaultCategory || ''),
-        subCategory: String(getVal('SubCategory', 'Sub Category', 'sub_category', 'Sub-Category') || ''),
+        name: String(getVal('Name', 'Product Name', 'product_name', 'Title') || ''),
+        sku: String(getVal('SKU', 'sku', 'Item Number', 'Model Number') || ''),
+        category: String(getVal('Category', 'category', 'Product Category') || ''),
+        subCategory: String(getVal('SubCategory', 'Sub Category', 'sub_category') || ''),
         hasPrice: hasPriceVal !== '' ? hasPriceVal : undefined,
         pricingType: pricingTypeVal ? (String(pricingTypeVal).toLowerCase().includes('quote') ? 'quote' : 'fixed') : undefined,
         priceUSD: rawPrice !== '' && rawPrice !== null ? Number(rawPrice) : undefined,
-        stockQuantity: Number(getVal('StockQuantity', 'Stock', 'Quantity', 'stock_quantity', 'Qty') || 15),
+        stockQuantity: Number(getVal('StockQuantity', 'Stock', 'Quantity', 'stock_quantity') || 10),
         brand: String(getVal('Brand', 'brand', 'Manufacturer') || 'Enterprise OEM'),
         description: String(getVal('Description', 'description', 'Details') || ''),
         features: String(getVal('Features', 'features', 'Key Features') || ''),
-        imageUrl: String(getVal('ImageUrl', 'Image URL', 'image_url', 'Photo', 'Image') || '')
+        imageUrl: String(getVal('ImageUrl', 'Image URL', 'image_url', 'Photo') || '')
       };
     });
 
-    const result = processBulkUpload(normalizedRows, {
-      defaultCategory: typeof defaultCategory === 'string' ? defaultCategory : undefined,
-      replaceCategory: typeof replaceCategory === 'string' ? replaceCategory : undefined,
-      action: action || (replaceCategory ? 'replace_category' : 'append')
-    });
+    const result = processBulkUpload(normalizedRows);
 
     res.json({
       success: true,
-      message: `Successfully uploaded ${result.uploaded} products to catalogue with zero truncation (all ${result.totalRows} rows processed).`,
-      totalRowsInFile: result.totalRows,
+      message: `Successfully processed bulk upload. Added ${result.uploaded} products to catalogue.`,
       uploadedCount: result.uploaded,
       failedCount: result.failed,
       errors: result.errors,
-      totalCatalogSize: result.totalProducts,
-      replacedCategory: result.replacedCategory
+      totalCatalogSize: result.totalProducts
     });
   } catch (err: any) {
     console.error('Bulk upload error:', err);
-    res.status(500).json({ error: 'Failed to process bulk upload: ' + err.message });
+    res.status(500).json({ error: 'Failed to process Excel file: ' + err.message });
   }
 });
 
